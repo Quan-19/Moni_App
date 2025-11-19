@@ -10,22 +10,17 @@ export default function ExpenseChart({ expenses }) {
     
     expenses.forEach(exp => {
       let date;
-      // Kiểm tra định dạng date (có thể là timestamp, string, hoặc object với seconds)
       if (exp.date && exp.date.seconds) {
-        // Firestore timestamp
         date = new Date(exp.date.seconds * 1000);
       } else if (exp.date instanceof Date) {
-        // Date object
         date = exp.date;
       } else if (typeof exp.date === 'string') {
-        // String date
         date = new Date(exp.date);
       } else {
-        // Fallback: sử dụng ngày hiện tại
         date = new Date();
       }
       
-      const month = date.getMonth(); // 0-11
+      const month = date.getMonth();
       if (!isNaN(month) && month >= 0 && month < 12) {
         monthlyExpenses[month] += exp.amount;
       }
@@ -35,17 +30,16 @@ export default function ExpenseChart({ expenses }) {
   };
 
   const monthlyExpenses = processMonthlyData();
-  const screenWidth = Dimensions.get("window").width - 40;
-
-  // Tính tổng chi tiêu
+  const screenWidth = Dimensions.get("window").width;
+  
+  // Tính các giá trị cho biểu đồ
   const totalExpenses = monthlyExpenses.reduce((sum, amount) => sum + amount, 0);
-
-  // Tìm tháng có chi tiêu cao nhất
   const maxExpense = Math.max(...monthlyExpenses);
   const maxMonthIndex = monthlyExpenses.indexOf(maxExpense);
 
   const monthNames = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", 
                      "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
+  const shortMonthNames = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
 
   // Nếu không có dữ liệu
   if (expenses.length === 0 || totalExpenses === 0) {
@@ -59,55 +53,71 @@ export default function ExpenseChart({ expenses }) {
     );
   }
 
+  // Chuẩn bị dữ liệu cho biểu đồ
+  const chartData = {
+    labels: shortMonthNames,
+    datasets: [{ 
+      data: monthlyExpenses 
+    }]
+  };
+
+  // Cấu hình biểu đồ
+  const chartConfig = {
+    backgroundColor: "#ffffff",
+    backgroundGradientFrom: "#ffffff",
+    backgroundGradientTo: "#ffffff",
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
+    style: {
+      borderRadius: 16,
+    },
+    barPercentage: 0.6,
+    formatYLabel: (value) => {
+      const numValue = Number(value);
+      if (numValue >= 1000000) {
+        return `${(numValue / 1000000).toFixed(1)}M`;
+      } else if (numValue >= 1000) {
+        return `${(numValue / 1000).toFixed(0)}K`;
+      }
+      return value;
+    },
+    propsForBackgroundLines: {
+      strokeWidth: 1,
+      stroke: "#e5e7eb",
+    },
+    propsForLabels: {
+      fontSize: 10,
+    },
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Chi tiêu theo tháng</Text>
       
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      {/* Biểu đồ */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={true}
+        contentContainerStyle={styles.chartScrollView}
+      >
         <BarChart
-          data={{
-            labels: ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"],
-            datasets: [{ 
-              data: monthlyExpenses 
-            }]
-          }}
-          width={Math.max(screenWidth, 600)} // Đảm bảo đủ rộng để hiển thị
+          data={chartData}
+          width={Math.max(screenWidth, 700)} // Đảm bảo đủ rộng
           height={220}
           yAxisLabel=""
           yAxisSuffix=""
-          fromZero
-          chartConfig={{
-            backgroundColor: "#ffffff",
-            backgroundGradientFrom: "#ffffff",
-            backgroundGradientTo: "#ffffff",
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
-            style: { borderRadius: 16 },
-            barPercentage: 0.5,
-            propsForLabels: {
-              fontSize: 10,
-            },
-            formatYLabel: (value) => {
-              if (value >= 1000000) {
-                return `${(value / 1000000).toFixed(1)}M`;
-              } else if (value >= 1000) {
-                return `${(value / 1000).toFixed(0)}K`;
-              }
-              return value.toString();
-            }
-          }}
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-          }}
-          showBarTops={false}
-          withCustomBarColorFromData={true}
-          flatColor={true}
+          fromZero={true}
+          chartConfig={chartConfig}
+          style={styles.chartStyle}
+          showBarTops={true}
+          withHorizontalLabels={true}
+          withVerticalLabels={true}
+          segments={4}
         />
       </ScrollView>
 
-      {/* Hiển thị thông tin thống kê */}
+      {/* Thông tin thống kê */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Tổng chi năm:</Text>
@@ -123,13 +133,18 @@ export default function ExpenseChart({ expenses }) {
         )}
       </View>
 
-      {/* Hiển thị chi tiết từng tháng */}
+      {/* Chi tiết từng tháng */}
       <View style={styles.detailContainer}>
         <Text style={styles.detailTitle}>Chi tiết theo tháng</Text>
         <ScrollView style={styles.monthList} showsVerticalScrollIndicator={false}>
           {monthlyExpenses.map((amount, index) => (
             <View key={index} style={styles.monthItem}>
-              <Text style={styles.monthName}>{monthNames[index]}</Text>
+              <View style={styles.monthInfo}>
+                <Text style={styles.monthName}>{monthNames[index]}</Text>
+                {amount > 0 && (
+                  <View style={[styles.barIndicator, { width: `${(amount / maxExpense) * 60}%` }]} />
+                )}
+              </View>
               <View style={styles.amountContainer}>
                 <Text style={[
                   styles.monthAmount, 
@@ -169,6 +184,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 18,
     color: "#1f2937"
+  },
+  chartScrollView: {
+    paddingVertical: 8,
+  },
+  chartStyle: {
+    marginVertical: 8,
+    borderRadius: 16,
   },
   noDataContainer: {
     alignItems: "center",
@@ -221,15 +243,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
+  monthInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
   monthName: {
     fontSize: 14,
     color: "#374151",
     fontWeight: "500",
-    flex: 1,
+    width: 80,
+  },
+  barIndicator: {
+    height: 6,
+    backgroundColor: "#3b82f6",
+    borderRadius: 3,
+    marginLeft: 8,
   },
   amountContainer: {
     alignItems: "flex-end",
-    flex: 1,
   },
   monthAmount: {
     fontSize: 14,

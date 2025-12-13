@@ -29,14 +29,9 @@ export default function LoginScreen() {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if (user.email === adminEmail) {
-        navigation.replace("AdminScreen"); // chuyển sang admin
-      } else {
-        navigation.replace("Home"); // sang giao diện người dùng
-      }
+      await signInWithEmailAndPassword(auth, email, password);
+      // ✅ KHÔNG navigation ở đây
+      // RootNavigator sẽ tự chuyển sang AppStack
     } catch (error) {
       Alert.alert("Login Failed", error.message);
     }
@@ -75,7 +70,7 @@ export default function LoginScreen() {
           entering={FadeInUp.duration(1000).springify()}
           style={{ fontSize: 50, fontWeight: "bold", color: "white" }}
         >
-          Login
+          Welcome to Moni
         </Animated.Text>
       </View>
 
@@ -93,7 +88,12 @@ export default function LoginScreen() {
             alignItems: "center",
           }}
         >
-          <Ionicons name="mail" size={20} color="gray" style={{ marginRight: 8 }} />
+          <Ionicons
+            name="mail"
+            size={20}
+            color="gray"
+            style={{ marginRight: 8 }}
+          />
           <TextInput
             placeholder="Email"
             placeholderTextColor="gray"

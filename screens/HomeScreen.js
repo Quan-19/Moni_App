@@ -1,25 +1,39 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
-  FlatList,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  Alert,
-  ScrollView,
-  Dimensions,
   SafeAreaView,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchExpenses, deleteExpense } from "../slices/expensesSlice";
+import { fetchExpenses } from "../slices/expensesSlice";
+import { fetchIncomes } from "../slices/incomeSlice";
+import { fetchGoals } from "../slices/goalsSlice";
 import { useNavigation } from "@react-navigation/native";
-import { Picker } from "@react-native-picker/picker";
-import ExpenseChart from "../components/ExpenseChart";
-import CategoryChart from "./CategoryChart";
-import SmartAlert from '../components/SmartAlert';
+import { auth } from "../firebaseConfig";
+import MonthlyStatsTab from "../components/tabs/MonthlyStatsTab";
 
-const { width } = Dimensions.get("window");
+// Import các component đã tạo
+import FloatingActionButton from "../components/FloatingActionButton";
+import OverviewTab from "../components/tabs/OverviewTab";
+import ListTab from "../components/tabs/ListTab";
+// import StatsTab from "../components/tabs/StatsTab";
+import DailyTracker from "../components/DailyTracker";
+import BudgetScreen from "../screens/BudgetScreen";
+import GoalsScreen from "../screens/GoalsScreen";
+import MonthlyChallenge from "../components/MonthlyChallenge";
+import FinancialOverview from "../components/FinancialOverview";
+
+// Import monthly manager
+import monthlyManager from "../utils/monthlyManager";
+
+// Import icons
+import Ionicons from "react-native-vector-icons/Ionicons";
+
 const categories = [
   "Ăn uống",
   "Mua sắm",
@@ -27,336 +41,600 @@ const categories = [
   "Giải trí",
   "Hóa đơn",
   "Y tế",
+  "Tiết kiệm",
   "Khác",
+];
+
+// Định nghĩa các tab mới (ĐÃ SỬA: bỏ tab budget ở đây)
+const tabs = [
+  { id: "overview", label: "📊 Tổng quan", icon: "stats-chart" },
+  { id: "daily", label: "📅 Hàng ngày", icon: "calendar" },
+  { id: "goals", label: "🎯 Mục tiêu", icon: "trophy" },
+  // { id: "budget", label: "💰 Ngân sách", icon: "wallet" }, // CHỈ HIỆN Ở TAB BUDGET
+  { id: "list", label: "📝 Danh sách", icon: "list" },
+  // { id: "stats", label: "📈 Thống kê", icon: "analytics" },
+  { id: "monthly-stats", label: "📊 Tháng", icon: "bar-chart" },
 ];
 
 export default function HomeScreen() {
   const dispatch = useDispatch();
   const navigation = useNavigation();
-  const expenses = useSelector((state) => state.expenses.items);
+  const allExpenses = useSelector((state) => state.expenses.items);
+  const allIncomes = useSelector((state) => state.incomes.items);
+  const allGoals = useSelector((state) => state.goals.items);
+  const expensesStatus = useSelector((state) => state.expenses.status);
+  const incomesStatus = useSelector((state) => state.incomes.status);
+  const goalsStatus = useSelector((state) => state.goals.status);
 
-  // --- STATES ---
-  const [search, setSearch] = useState("");
-  const [filterCategory, setFilterCategory] = useState("All");
-  const [showFilters, setShowFilters] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview"); // overview, list, stats
+  const [activeTab, setActiveTab] = useState("overview");
+  const [filters, setFilters] = useState({
+    search: "",
+    category: "All",
+  });
+  const [currentMonth, setCurrentMonth] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedMonths, setArchivedMonths] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDataInitialized, setIsDataInitialized] = useState(false);
 
+  // Hàm để khởi tạo và đồng bộ dữ liệu
+  const initializeData = useCallback(async () => {
+    try {
+      console.log("🔄 Bắt đầu khởi tạo dữ liệu...");
+      console.log("📊 Số chi tiêu từ Redux:", allExpenses.length);
+
+      // Khởi tạo monthly manager với dữ liệu từ Redux
+      await monthlyManager.initialize(allExpenses);
+
+      // Lấy thông tin tháng hiện tại
+      const monthInfo = monthlyManager.getCurrentMonthInfo();
+      const archived = monthlyManager.getArchivedMonths();
+
+      setCurrentMonth(monthInfo);
+      setArchivedMonths(archived);
+      setIsDataInitialized(true);
+
+      console.log("✅ Khởi tạo thành công:", {
+        currentMonth: monthInfo?.name,
+        currentMonthExpenses: monthInfo?.expenses?.length,
+        archivedMonths: archived.length,
+      });
+
+      return monthInfo;
+    } catch (error) {
+      console.error("❌ Lỗi khởi tạo dữ liệu:", error);
+      return null;
+    }
+  }, [allExpenses]);
+
+  // Effect để fetch dữ liệu từ Firestore
   useEffect(() => {
-    dispatch(fetchExpenses());
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        console.log("🔄 Bắt đầu fetch dữ liệu từ Firestore...");
+
+        // Fetch tất cả dữ liệu từ Firestore
+        await Promise.all([
+          dispatch(fetchExpenses()),
+          dispatch(fetchIncomes()),
+          dispatch(fetchGoals()),
+        ]);
+
+        console.log("✅ Fetch dữ liệu hoàn tất");
+      } catch (error) {
+        console.error("❌ Lỗi fetch dữ liệu:", error);
+        Alert.alert("Lỗi", "Không thể tải dữ liệu từ máy chủ");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
   }, [dispatch]);
 
-  const handleDelete = (id) => {
+  // Effect để khởi tạo monthly manager KHI dữ liệu đã được fetch
+  useEffect(() => {
+    const initManager = async () => {
+      // Chỉ khởi tạo khi dữ liệu đã sẵn sàng và chưa được khởi tạo
+      if (
+        expensesStatus === "succeeded" &&
+        incomesStatus === "succeeded" &&
+        goalsStatus === "succeeded" &&
+        !isDataInitialized &&
+        allExpenses.length >= 0
+      ) {
+        console.log("📥 Trạng thái dữ liệu:", {
+          expenses: expensesStatus,
+          incomes: incomesStatus,
+          goals: goalsStatus,
+          expenseCount: allExpenses.length,
+          incomeCount: allIncomes.length,
+          goalCount: allGoals.length,
+        });
+
+        await initializeData();
+      }
+    };
+
+    initManager();
+  }, [
+    expensesStatus,
+    incomesStatus,
+    goalsStatus,
+    allExpenses,
+    allIncomes,
+    allGoals,
+    isDataInitialized,
+    initializeData,
+  ]);
+
+  // Effect để cập nhật dữ liệu khi allExpenses thay đổi (thêm/sửa/xóa)
+  useEffect(() => {
+    const updateData = async () => {
+      if (isDataInitialized && monthlyManager && allExpenses.length > 0) {
+        try {
+          console.log("🔄 Cập nhật dữ liệu với monthly manager...");
+          console.log("📝 Số chi tiêu mới:", allExpenses.length);
+
+          // Sử dụng syncWithRedux thay vì updateExpenses
+          const updatedExpenses = await monthlyManager.syncWithRedux(
+            allExpenses
+          );
+
+          // Lấy lại thông tin tháng hiện tại
+          const monthInfo = monthlyManager.getCurrentMonthInfo();
+          const archived = monthlyManager.getArchivedMonths();
+
+          setCurrentMonth(monthInfo);
+          setArchivedMonths(archived);
+
+          console.log("✅ Cập nhật thành công:", {
+            currentMonth: monthInfo?.name,
+            expensesInMonth: updatedExpenses?.length || 0,
+            totalInMonth: monthInfo?.total || 0,
+          });
+        } catch (error) {
+          console.error("❌ Lỗi cập nhật monthly manager:", error);
+        }
+      }
+    };
+
+    updateData();
+  }, [allExpenses, isDataInitialized]);
+
+  // Hàm để làm mới dữ liệu
+  const refreshData = async () => {
+    try {
+      setIsLoading(true);
+      console.log("🔄 Làm mới dữ liệu...");
+
+      // Fetch lại dữ liệu từ Firestore
+      await Promise.all([
+        dispatch(fetchExpenses()),
+        dispatch(fetchIncomes()),
+        dispatch(fetchGoals()),
+      ]);
+
+      // Khởi tạo lại monthly manager
+      await initializeData();
+
+      console.log("✅ Làm mới dữ liệu thành công");
+    } catch (error) {
+      console.error("❌ Lỗi làm mới dữ liệu:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Hàm logout
+  const handleLogout = () => {
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await auth.signOut();
+            console.log("✅ Đã đăng xuất");
+            // Navigation sẽ tự động chuyển đến Auth screen nhờ RootNavigation
+          } catch (error) {
+            console.error("❌ Lỗi đăng xuất:", error);
+            Alert.alert("Lỗi", "Không thể đăng xuất. Vui lòng thử lại.");
+          }
+        },
+      },
+    ]);
+  };
+
+  // Hàm mở profile với refresh
+  const handleProfile = () => {
     Alert.alert(
-      "Xóa chi tiêu",
-      "Bạn có chắc chắn muốn xóa khoản chi tiêu này?",
+      "Thông tin tài khoản",
+      `👤 Tài khoản:\n${
+        auth.currentUser?.email || "Không có email"
+      }\n\n📊 Dữ liệu:\n• Chi tiêu: ${allExpenses.length}\n• Thu nhập: ${
+        allIncomes.length
+      }\n• Mục tiêu: ${allGoals.length}`,
       [
-        { text: "Hủy", style: "cancel" },
-        { text: "Xóa", onPress: () => dispatch(deleteExpense(id)) },
+        { text: "Đóng", style: "cancel" },
+        {
+          text: "Làm mới dữ liệu",
+          onPress: refreshData,
+        },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: handleLogout,
+        },
       ]
     );
   };
 
-  const filteredExpenses = expenses.filter((item) => {
-    if (!item.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterCategory !== "All" && item.category !== filterCategory) return false;
+  // Filter logic - chỉ lọc chi tiêu của tháng hiện tại
+  const getCurrentMonthExpenses = () => {
+    if (!currentMonth || !currentMonth.expenses) return [];
+    return currentMonth.expenses || [];
+  };
+
+  const filteredExpenses = getCurrentMonthExpenses().filter((item) => {
+    if (
+      filters.search &&
+      !item.title.toLowerCase().includes(filters.search.toLowerCase())
+    ) {
+      return false;
+    }
+    if (filters.category !== "All" && item.category !== filters.category) {
+      return false;
+    }
     return true;
   });
 
-  // Tính tổng chi
-  const totalExpenses = filteredExpenses.reduce((sum, item) => sum + item.amount, 0);
+  // Chuyển đổi giữa xem tháng hiện tại và archive
+  const toggleView = () => {
+    setShowArchived(!showArchived);
+  };
 
-  // Render tab content
+  // Chuyển sang xem tháng khác
+  const switchMonth = async (monthId) => {
+    const month = await monthlyManager.switchToMonth(monthId);
+    if (month) {
+      setCurrentMonth(month);
+      setShowArchived(false);
+    }
+  };
+
+  // Quay lại tháng hiện tại
+  const backToCurrentMonth = async () => {
+    await initializeData();
+    setShowArchived(false);
+  };
+
+  // Render header với thông tin tháng
+  const renderMonthHeader = () => {
+    if (isLoading || !isDataInitialized) {
+      return (
+        <View style={styles.monthHeader}>
+          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.monthHeader}>
+        <View style={styles.monthInfo}>
+          <Text style={styles.monthTitle}>
+            📅 {currentMonth?.name || "Tháng hiện tại"}
+          </Text>
+          <Text style={styles.monthSubtitle}>
+            {getCurrentMonthExpenses().length} chi •{" "}
+            {getCurrentMonthExpenses()
+              .reduce((sum, e) => sum + (e?.amount || 0), 0)
+              .toLocaleString("vi-VN")}{" "}
+            VND
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.viewArchiveButton} onPress={toggleView}>
+          <Text style={styles.viewArchiveText}>
+            {showArchived ? "↩️ Tháng nay" : "📚 Tháng cũ"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Render cảnh báo cuối tháng
+  const renderEndOfMonthAlert = () => {
+    if (monthlyManager.isEndOfMonth()) {
+      const remainingDays = monthlyManager.getRemainingDaysInMonth();
+      return (
+        <View style={styles.endOfMonthAlert}>
+          <Text style={styles.alertTitle}>⚠️ Cuối tháng!</Text>
+          <Text style={styles.alertText}>
+            Còn {remainingDays} ngày nữa là sang tháng mới
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
+  // Render danh sách tháng đã lưu
+  const renderArchiveView = () => (
+    <ScrollView
+      style={styles.archiveContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.archiveTitle}>📚 Tháng đã lưu</Text>
+
+      {archivedMonths.length === 0 ? (
+        <View style={styles.emptyArchive}>
+          <Text style={styles.emptyArchiveText}>
+            Chưa có tháng nào được lưu
+          </Text>
+          <Text style={styles.emptyArchiveSubtext}>
+            Dữ liệu sẽ tự động được lưu khi sang tháng mới
+          </Text>
+        </View>
+      ) : (
+        <>
+          {archivedMonths.map((month) => (
+            <TouchableOpacity
+              key={month.id}
+              style={styles.archiveItem}
+              onPress={() => switchMonth(month.id)}
+            >
+              <View style={styles.archiveItemLeft}>
+                <Text style={styles.archiveMonthName}>
+                  {month?.name || "Không có tên"}
+                </Text>
+                <Text style={styles.archiveDate}>
+                  {month?.startDate
+                    ? new Date(month.startDate).toLocaleDateString("vi-VN")
+                    : "Không có ngày"}
+                </Text>
+              </View>
+
+              <View style={styles.archiveItemRight}>
+                <Text style={styles.archiveTotal}>
+                  {(month?.total || 0).toLocaleString("vi-VN")} VND
+                </Text>
+                <Text style={styles.archiveCount}>
+                  {month?.expenses?.length || 0} khoản chi
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </>
+      )}
+
+      <TouchableOpacity
+        style={styles.backToCurrentButton}
+        onPress={backToCurrentMonth}
+      >
+        <Text style={styles.backToCurrentText}>↩️ Quay lại tháng hiện tại</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  // Render thử thách tháng (chỉ hiện ở tab overview)
+  const renderMonthlyChallenge = () => {
+    if (activeTab === "overview" && !showArchived) {
+      return (
+        <MonthlyChallenge currentMonthExpenses={getCurrentMonthExpenses()} />
+      );
+    }
+    return null;
+  };
+
   const renderTabContent = () => {
+    if (isLoading || !isDataInitialized) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={refreshData}>
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (showArchived) {
+      return renderArchiveView();
+    }
+
+    const commonProps = {
+      expenses: filteredExpenses,
+      allExpenses: getCurrentMonthExpenses(),
+      categories,
+      filters,
+      onFilterChange: setFilters,
+      navigation,
+      currentMonth: currentMonth?.name || "",
+    };
+
     switch (activeTab) {
       case "overview":
         return (
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Cảnh báo thông minh */}
-            <SmartAlert expenses={expenses} />
-
-            {/* Quick Stats */}
-            <View style={styles.quickStats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{filteredExpenses.length}</Text>
-                <Text style={styles.statLabel}>khoản chi</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>
-                  {totalExpenses.toLocaleString()} VND
-                </Text>
-                <Text style={styles.statLabel}>tổng chi</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>
-                  {filteredExpenses.length > 0 
-                    ? Math.round(totalExpenses / filteredExpenses.length).toLocaleString()
-                    : "0"
-                  } VND
-                </Text>
-                <Text style={styles.statLabel}>trung bình</Text>
-              </View>
-            </View>
-
-            {/* Biểu đồ danh mục (tóm tắt) */}
-            <View style={styles.chartSummary}>
-              <Text style={styles.sectionTitle}>Phân bổ chi tiêu</Text>
-              <CategoryChart expenses={filteredExpenses} />
-            </View>
-
-            {/* Chi tiêu gần đây */}
-            <View style={styles.recentSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Chi tiêu gần đây</Text>
-                <TouchableOpacity onPress={() => setActiveTab("list")}>
-                  <Text style={styles.seeAllText}>Xem tất cả</Text>
-                </TouchableOpacity>
-              </View>
-              {filteredExpenses.slice(0, 5).map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.recentItem}
-                  onPress={() => navigation.navigate("EditExpense", { expense: item })}
-                >
-                  <View style={styles.recentLeft}>
-                    <View style={[styles.categoryDot, { backgroundColor: getCategoryColor(item.category) }]} />
-                    <View>
-                      <Text style={styles.recentTitle}>{item.title}</Text>
-                      <Text style={styles.recentCategory}>{item.category}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.recentRight}>
-                    <Text style={styles.recentAmount}>{item.amount.toLocaleString()} VND</Text>
-                    <Text style={styles.recentDate}>
-                      {item.date ? new Date(item.date).toLocaleDateString("vi-VN") : ""}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {filteredExpenses.length === 0 && (
-                <View style={styles.emptyRecent}>
-                  <Text style={styles.emptyText}>Chưa có chi tiêu nào</Text>
-                </View>
-              )}
-            </View>
+            {/* Truyền setActiveTab xuống FinancialOverview */}
+            <FinancialOverview
+              navigation={navigation}
+              setActiveTab={setActiveTab}
+            />
+            {renderMonthlyChallenge()}
+            <OverviewTab {...commonProps} />
           </ScrollView>
         );
-
+      case "daily":
+        return <DailyTracker />;
+      case "monthly-stats":
+        return <MonthlyStatsTab />;
+      case "budget":
+        return <BudgetScreen />;
+      case "goals":
+        return <GoalsScreen />;
       case "list":
-        return (
-          <View style={styles.tabContent}>
-            {/* Bộ lọc */}
-            <View style={styles.filterSection}>
-              <View style={styles.searchRow}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Tìm kiếm chi tiêu..."
-                  placeholderTextColor="#9ca3af"
-                  value={search}
-                  onChangeText={setSearch}
-                />
-                <TouchableOpacity
-                  style={styles.filterToggleButton}
-                  onPress={() => setShowFilters(!showFilters)}
-                >
-                  <Text style={styles.filterToggleText}>
-                    {showFilters ? "Ẩn" : "Lọc"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {showFilters && (
-                <View style={styles.simpleFilterOptions}>
-                  <Text style={styles.filterLabel}>Danh mục</Text>
-                  <View style={styles.pickerWrapper}>
-                    <Picker
-                      selectedValue={filterCategory}
-                      style={styles.picker}
-                      onValueChange={setFilterCategory}
-                      dropdownIconColor="#6b7280"
-                    >
-                      <Picker.Item label="Tất cả danh mục" value="All" />
-                      {categories.map((c) => (
-                        <Picker.Item key={c} label={c} value={c} />
-                      ))}
-                    </Picker>
-                  </View>
-
-                  {(search || filterCategory !== "All") && (
-                    <TouchableOpacity
-                      style={styles.resetFilterButton}
-                      onPress={() => {
-                        setSearch("");
-                        setFilterCategory("All");
-                      }}
-                    >
-                      <Text style={styles.resetFilterText}>Xóa bộ lọc</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-
-            {/* Danh sách */}
-            <View style={styles.listContainer}>
-              <View style={styles.listHeader}>
-                <Text style={styles.sectionTitle}>
-                  Danh sách chi tiêu ({filteredExpenses.length})
-                </Text>
-              </View>
-
-              {filteredExpenses.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.noDataText}>Không tìm thấy chi tiêu nào</Text>
-                  <Text style={styles.noDataSubText}>
-                    {search || filterCategory !== "All"
-                      ? "Hãy thử thay đổi bộ lọc"
-                      : "Thêm chi tiêu mới để bắt đầu"}
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={filteredExpenses}
-                  keyExtractor={(item) => item.id}
-                  showsVerticalScrollIndicator={false}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.expenseItem}
-                      onPress={() => navigation.navigate("EditExpense", { expense: item })}
-                    >
-                      <View style={styles.expenseContent}>
-                        <View style={styles.expenseMain}>
-                          <Text style={styles.expenseTitle}>{item.title}</Text>
-                          <Text style={styles.expenseAmount}>
-                            {item.amount.toLocaleString()} VND
-                          </Text>
-                        </View>
-                        <View style={styles.expenseDetails}>
-                          <View
-                            style={[
-                              styles.categoryBadge,
-                              { backgroundColor: getCategoryColor(item.category) },
-                            ]}
-                          >
-                            <Text style={styles.categoryText}>{item.category}</Text>
-                          </View>
-                          <Text style={styles.expenseDate}>
-                            {item.date
-                              ? new Date(item.date).toLocaleDateString("vi-VN")
-                              : ""}
-                          </Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDelete(item.id)}
-                      >
-                        <Text style={styles.deleteText}>✕</Text>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  )}
-                />
-              )}
-            </View>
-          </View>
-        );
-
-      case "stats":
-        return (
-          <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.statsHeader}>
-              <View style={styles.statCard}>
-                <Text style={styles.statCardValue}>{filteredExpenses.length}</Text>
-                <Text style={styles.statCardLabel}>Số giao dịch</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statCardValue}>{totalExpenses.toLocaleString()}</Text>
-                <Text style={styles.statCardLabel}>Tổng chi tiêu</Text>
-              </View>
-            </View>
-
-            <View style={styles.chartsSection}>
-              <Text style={styles.sectionTitle}>Chi tiêu theo tháng</Text>
-              <ExpenseChart expenses={filteredExpenses} />
-            </View>
-
-            <View style={styles.chartsSection}>
-              <Text style={styles.sectionTitle}>Phân bổ theo danh mục</Text>
-              <CategoryChart expenses={filteredExpenses} />
-            </View>
-          </ScrollView>
-        );
-
+        return <ListTab {...commonProps} />;
+      // case "stats":
+      //   return <StatsTab filters={filters} />;
       default:
         return null;
     }
   };
 
+  // Custom Tab Navigation Component
+  const renderTabNavigation = () => {
+    if (showArchived || isLoading || !isDataInitialized) return null;
+
+    return (
+      <View style={styles.tabContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabScrollContent}
+        >
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tab, activeTab === tab.id && styles.activeTab]}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              {tab.icon ? (
+                <Ionicons
+                  name={tab.icon}
+                  size={20}
+                  color={activeTab === tab.id ? "#3b82f6" : "#6b7280"}
+                  style={styles.tabIcon}
+                />
+              ) : null}
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab.id && styles.activeTabText,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // Nút Floating Action Button đa chức năng
+  const renderFloatingButton = () => {
+    if (showArchived || isLoading || !isDataInitialized) return null;
+
+    const getFloatingButtonAction = () => {
+      switch (activeTab) {
+        case "overview":
+        case "daily":
+        case "list":
+        case "stats":
+          return () => navigation.navigate("AddExpense");
+        case "goals":
+          return () => {
+            // Trong GoalsScreen đã có modal thêm mục tiêu
+            // Nên không cần navigation
+            return;
+          };
+        case "budget":
+          return () => navigation.navigate("AddExpense");
+        default:
+          return () => navigation.navigate("AddExpense");
+      }
+    };
+
+    const getFloatingButtonLabel = () => {
+      switch (activeTab) {
+        case "overview":
+        case "daily":
+        case "list":
+        case "stats":
+        case "budget":
+          return "+";
+        case "goals":
+          return "🎯";
+        default:
+          return "+";
+      }
+    };
+
+    // Chỉ hiện nút FAB khi ở các tab cần thiết
+    const shouldShowFAB = [
+      "overview",
+      "daily",
+      "list",
+      // "stats",
+      "budget",
+    ].includes(activeTab);
+
+    if (!shouldShowFAB) return null;
+
+    return (
+      <View style={styles.floatingButtonsContainer}>
+        {/* Nút thêm thu nhập - CHỈ HIỆN KHI Ở TAB OVERVIEW */}
+        {activeTab === "overview" && (
+          <TouchableOpacity
+            style={[styles.floatingButton, styles.floatingButtonSecondary]}
+            onPress={() => {
+              console.log("Navigating to AddIncome");
+              navigation.navigate("AddIncome");
+            }}
+          >
+            <Text style={styles.floatingButtonText}>💰</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Nút chính */}
+        <TouchableOpacity
+          style={styles.floatingButton}
+          onPress={getFloatingButtonAction()}
+        >
+          <Text style={styles.floatingButtonText}>
+            {getFloatingButtonLabel()}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header với nút profile */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Quản lý chi tiêu</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.appTitle}>Moni</Text>
+          <Text style={styles.appSubtitle}>
+            {isDataInitialized ? currentMonth?.name : "Đang tải..."}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.profileButton} onPress={handleProfile}>
+          <Ionicons name="person-circle-outline" size={30} color="#3b82f6" />
+        </TouchableOpacity>
       </View>
+
+      {/* Header tháng */}
+      {renderMonthHeader()}
 
       {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "overview" && styles.activeTab]}
-          onPress={() => setActiveTab("overview")}
-        >
-          <Text style={[styles.tabText, activeTab === "overview" && styles.activeTabText]}>
-            📊 Tổng quan
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "list" && styles.activeTab]}
-          onPress={() => setActiveTab("list")}
-        >
-          <Text style={[styles.tabText, activeTab === "list" && styles.activeTabText]}>
-            📝 Danh sách
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "stats" && styles.activeTab]}
-          onPress={() => setActiveTab("stats")}
-        >
-          <Text style={[styles.tabText, activeTab === "stats" && styles.activeTabText]}>
-            📈 Thống kê
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {renderTabNavigation()}
 
       {/* Main Content */}
-      <View style={styles.content}>
-        {renderTabContent()}
-      </View>
+      <View style={styles.content}>{renderTabContent()}</View>
 
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("AddExpense")}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {/* Floating Action Buttons */}
+      {renderFloatingButton()}
     </SafeAreaView>
   );
 }
-
-// Helper function for category colors
-const getCategoryColor = (category) => {
-  const colors = {
-    "Ăn uống": "#ef4444",
-    "Mua sắm": "#3b82f6",
-    "Di chuyển": "#f59e0b",
-    "Giải trí": "#8b5cf6",
-    "Hóa đơn": "#10b981",
-    "Y tế": "#ec4899",
-    Khác: "#6b7280",
-  };
-  return colors[category] || "#6b7280";
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -364,32 +642,121 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
     backgroundColor: "#f8fafc",
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1f2937",
-    textAlign: "center",
-  },
-  // Tab Styles
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  tab: {
+  headerLeft: {
     flex: 1,
-    paddingVertical: 12,
+  },
+  appTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#1f2937",
+  },
+  appSubtitle: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  profileButton: {
+    padding: 5,
+  },
+  monthHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    padding: 16,
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 5,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  monthInfo: {
+    flex: 1,
+  },
+  monthTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  monthSubtitle: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    flex: 1,
+  },
+  viewArchiveButton: {
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginLeft: 12,
+  },
+  viewArchiveText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  endOfMonthAlert: {
+    backgroundColor: "#fef3c7",
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#92400e",
+    marginBottom: 2,
+    textAlign: "center",
+  },
+  alertText: {
+    fontSize: 13,
+    color: "#92400e",
+    textAlign: "center",
+  },
+  tabContainer: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingVertical: 8,
+  },
+  tabScrollContent: {
+    paddingHorizontal: 16,
+  },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 8,
+    backgroundColor: "#f3f4f6",
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: "#3b82f6",
+    backgroundColor: "#3b82f6",
+  },
+  tabIcon: {
+    marginRight: 6,
   },
   tabText: {
     fontSize: 14,
@@ -397,21 +764,105 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   activeTabText: {
-    color: "#3b82f6",
+    color: "#fff",
     fontWeight: "600",
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
-  tabContent: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  archiveContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  archiveTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  emptyArchive: {
+    backgroundColor: "#fff",
+    padding: 40,
+    borderRadius: 16,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  emptyArchiveText: {
+    fontSize: 16,
+    color: "#6b7280",
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  emptyArchiveSubtext: {
+    fontSize: 14,
+    color: "#9ca3af",
+    textAlign: "center",
+  },
+  archiveItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  archiveItemLeft: {
     flex: 1,
   },
-  // FAB Styles
-  fab: {
+  archiveMonthName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  archiveDate: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginTop: 4,
+  },
+  archiveItemRight: {
+    alignItems: "flex-end",
+  },
+  archiveTotal: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  archiveCount: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginTop: 4,
+  },
+  backToCurrentButton: {
+    backgroundColor: "#3b82f6",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  backToCurrentText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  floatingButtonsContainer: {
     position: "absolute",
     right: 20,
     bottom: 20,
+    alignItems: "flex-end",
+  },
+  floatingButton: {
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -423,332 +874,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    marginBottom: 12,
   },
-  fabText: {
+  floatingButtonSecondary: {
+    backgroundColor: "#10b981",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginBottom: 8,
+  },
+  floatingButtonText: {
     color: "#fff",
     fontSize: 24,
     fontWeight: "bold",
   },
-  // Overview Tab Styles
-  quickStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  statItem: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#6b7280",
-    fontWeight: "500",
-  },
-  chartSummary: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  recentSection: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1f2937",
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: "#3b82f6",
-    fontWeight: "500",
-  },
-  recentItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  recentLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  categoryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  recentTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 2,
-  },
-  recentCategory: {
-    fontSize: 12,
-    color: "#6b7280",
-  },
-  recentRight: {
-    alignItems: "flex-end",
-  },
-  recentAmount: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#059669",
-    marginBottom: 2,
-  },
-  recentDate: {
-    fontSize: 12,
-    color: "#9ca3af",
-  },
-  emptyRecent: {
-    padding: 20,
-    alignItems: "center",
-  },
-  emptyText: {
-    color: "#6b7280",
-    fontSize: 14,
-  },
-  // List Tab Styles
-  filterSection: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-    marginTop: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    backgroundColor: "#f9fafb",
-    marginRight: 12,
-  },
-  filterToggleButton: {
-    paddingVertical: 14,
+  retryButton: {
+    backgroundColor: "#3b82f6",
     paddingHorizontal: 20,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-  },
-  filterToggleText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  simpleFilterOptions: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-  },
-  filterLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 8,
-  },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-    backgroundColor: "#f9fafb",
-    overflow: "hidden",
-    marginBottom: 12,
-  },
-  picker: {
-    height: 50,
-  },
-  resetFilterButton: {
-    backgroundColor: "#ef4444",
-    padding: 12,
+    paddingVertical: 10,
     borderRadius: 10,
-    alignItems: "center",
+    marginTop: 10,
   },
-  resetFilterText: {
+  retryButtonText: {
     color: "#fff",
-    fontWeight: "500",
     fontSize: 14,
-  },
-  listContainer: {
-    flex: 1,
-  },
-  listHeader: {
-    marginBottom: 16,
-    marginTop: 16,
-  },
-  expenseItem: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  expenseContent: {
-    flex: 1,
-  },
-  expenseMain: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  expenseTitle: {
-    fontSize: 17,
     fontWeight: "600",
-    color: "#111827",
-    flex: 1,
-    marginRight: 12,
-  },
-  expenseAmount: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#059669",
-  },
-  expenseDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  categoryBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#fff",
-  },
-  expenseDate: {
-    fontSize: 14,
-    color: "#9ca3af",
-    fontWeight: "500",
-  },
-  deleteButton: {
-    padding: 8,
-    marginLeft: 12,
-  },
-  deleteText: {
-    color: "#ef4444",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 20,
-  },
-  noDataText: {
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: 18,
-    fontWeight: "500",
-    marginBottom: 8,
-  },
-  noDataSubText: {
-    textAlign: "center",
-    color: "#9ca3af",
-    fontSize: 14,
-  },
-  // Stats Tab Styles
-  statsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  statCard: {
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 16,
-    flex: 1,
-    marginHorizontal: 5,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  statCardValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  statCardLabel: {
-    fontSize: 12,
-    color: "#6b7280",
-    fontWeight: "500",
-  },
-  chartsSection: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
 });
-

@@ -21,11 +21,13 @@ export const fetchExpenses = createAsyncThunk(
         title: data.title,
         amount: data.amount,
         date: data.date ? data.date.toMillis() : Date.now(),
-        category: data.category || 'Khác', // Thêm category, mặc định là 'Khác'
+        category: data.category || 'Khác',
+        monthId: data.monthId || null, // Thêm monthId
         userId: data.userId,
       };
     });
 
+    console.log('📥 Fetched expenses from Firestore:', expenses.length);
     return expenses;
   }
 );
@@ -34,20 +36,36 @@ export const fetchExpenses = createAsyncThunk(
 export const addExpense = createAsyncThunk(
   "expenses/addExpense",
   async (expenseData) => {
-    // Lưu vào Firestore
-    const docRef = await addDoc(collection(db, "expenses"), {
-      ...expenseData,
+    console.log('📤 Adding expense to Firestore:', expenseData);
+    
+    // Chuẩn bị dữ liệu cho Firestore
+    const firestoreData = {
+      title: expenseData.title,
+      amount: expenseData.amount,
+      category: expenseData.category,
+      monthId: expenseData.monthId || null, // Lưu monthId vào Firestore
       userId: auth.currentUser.uid,
-      date: Timestamp.now(), // Firestore Timestamp
-    });
+      date: expenseData.firestoreDate 
+        ? Timestamp.fromDate(new Date(expenseData.firestoreDate))
+        : Timestamp.now(),
+    };
 
-    // Trả về payload cho Redux: date là number
-    return {
+    // Lưu vào Firestore
+    const docRef = await addDoc(collection(db, "expenses"), firestoreData);
+
+    // Trả về payload cho Redux
+    const reduxExpense = {
       id: docRef.id,
-      ...expenseData,
-      date: Date.now(), // milliseconds, serializable
+      title: expenseData.title,
+      amount: expenseData.amount,
+      category: expenseData.category,
+      date: expenseData.date || Date.now(), // milliseconds
+      monthId: expenseData.monthId || null, // Giữ lại monthId
       userId: auth.currentUser.uid,
     };
+
+    console.log('✅ Expense added to Firestore:', reduxExpense);
+    return reduxExpense;
   }
 );
 
@@ -55,6 +73,7 @@ export const addExpense = createAsyncThunk(
 export const deleteExpense = createAsyncThunk(
   "expenses/deleteExpense",
   async (expenseId) => {
+    console.log('🗑️ Deleting expense:', expenseId);
     await deleteDoc(doc(db, "expenses", expenseId));
     return expenseId;
   }
@@ -64,11 +83,12 @@ export const deleteExpense = createAsyncThunk(
 export const updateExpense = createAsyncThunk(
   "expenses/updateExpense",
   async ({ id, ...expenseData }) => {
-    await updateDoc(doc(db, "expenses", id), {
+    const updateData = {
       ...expenseData,
-      date: Timestamp.fromMillis(expenseData.date), // Giả sử expenseData.date là milliseconds, chuyển thành Firestore Timestamp
-    });
-
+      date: Timestamp.fromMillis(expenseData.date),
+    };
+    
+    await updateDoc(doc(db, "expenses", id), updateData);
     return { id, ...expenseData };
   }
 );
@@ -78,15 +98,52 @@ const expensesSlice = createSlice({
   initialState: {
     items: [],
     status: "idle",
+    error: null
   },
-  reducers: {},
+  reducers: {
+    // Thêm reducer để cập nhật monthId cho expense cũ
+    updateExpenseMonthId: (state, action) => {
+      const { expenseId, monthId } = action.payload;
+      const expense = state.items.find(item => item.id === expenseId);
+      if (expense) {
+        expense.monthId = monthId;
+      }
+    },
+    
+    // Thêm reducer để đồng bộ với monthlyManager
+    syncWithMonthlyManager: (state, action) => {
+      const { monthId, expenses } = action.payload;
+      // Cập nhật monthId cho các expense thuộc tháng hiện tại
+      state.items.forEach(expense => {
+        if (!expense.monthId) {
+          // Kiểm tra xem expense có thuộc tháng này không
+          const expenseDate = new Date(expense.date);
+          const currentDate = new Date();
+          if (expenseDate.getMonth() === currentDate.getMonth() && 
+              expenseDate.getFullYear() === currentDate.getFullYear()) {
+            expense.monthId = monthId;
+          }
+        }
+      });
+    }
+  },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchExpenses.pending, (state) => {
+        state.status = "loading";
+      })
       .addCase(fetchExpenses.fulfilled, (state, action) => {
+        state.status = "succeeded";
         state.items = action.payload;
+        console.log('🔄 Redux state updated with', action.payload.length, 'expenses');
+      })
+      .addCase(fetchExpenses.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.error.message;
       })
       .addCase(addExpense.fulfilled, (state, action) => {
         state.items.push(action.payload);
+        console.log('➕ Expense added to Redux state');
       })
       .addCase(deleteExpense.fulfilled, (state, action) => {
         state.items = state.items.filter(item => item.id !== action.payload);
@@ -100,4 +157,5 @@ const expensesSlice = createSlice({
   },
 });
 
+export const { updateExpenseMonthId, syncWithMonthlyManager } = expensesSlice.actions;
 export default expensesSlice.reducer;

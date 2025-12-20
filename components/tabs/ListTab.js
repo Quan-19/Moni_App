@@ -103,9 +103,7 @@ const ListTab = ({ expenses, categories, filters, onFilterChange, navigation }) 
       {/* Danh sách */}
       <View style={styles.listContainer}>
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>
-            Danh sách chi tiêu ({expenses.length})
-          </Text>
+          <Text style={styles.sectionTitle}>Danh sách chi tiêu ({expenses.length})</Text>
         </View>
 
         {expenses.length === 0 ? (
@@ -251,6 +249,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
+    paddingLeft: 16,
   },
   expenseItem: {
     backgroundColor: '#fff',

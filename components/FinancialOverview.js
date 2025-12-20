@@ -157,7 +157,7 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
     <View style={styles.container}>
       {/* Header tổng quan */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>💰 Tổng quan tài chính</Text>
+        <Text style={styles.headerTitle}>Tổng quan tài chính</Text>
         <Text style={styles.headerSubtitle}>
           {currentMonth?.name || "Tháng hiện tại"}
         </Text>
@@ -196,7 +196,7 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
               style={styles.viewAllButton}
               onPress={handleViewAllIncomes}
             >
-              <Text style={styles.viewAllButtonText}>📋 Xem tất cả</Text>
+              <Text style={styles.viewAllButtonText}>Xem tất cả</Text>
             </TouchableOpacity>
           </View>
 
@@ -213,7 +213,7 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
               style={styles.viewAllButton}
               onPress={handleViewAllExpenses}
             >
-              <Text style={styles.viewAllButtonText}>📋 Xem tất cả</Text>
+              <Text style={styles.viewAllButtonText}>Xem tất cả</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -232,8 +232,8 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
           </Text>
           <Text style={styles.balanceSubtext}>
             {data.balance >= 0
-              ? "💰 Bạn đang có lãi"
-              : "⚠️ Cần điều chỉnh chi tiêu"}
+              ? "Bạn đang có lãi"
+              : "Cần điều chỉnh chi tiêu"}
           </Text>
         </View>
       </View>
@@ -276,7 +276,7 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
 
       {/* Dự báo */}
       <View style={styles.forecastContainer}>
-        <Text style={styles.forecastTitle}>📈 Dự báo cuối tháng</Text>
+        <Text style={styles.forecastTitle}>Dự báo cuối tháng</Text>
         <View style={styles.forecastRow}>
           <View style={styles.forecastItem}>
             <Text style={styles.forecastLabel}>Chi tiêu dự kiến</Text>
@@ -303,7 +303,7 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
       {/* Tỷ lệ tiết kiệm */}
       {data.totalIncomes > 0 && (
         <View style={styles.savingsContainer}>
-          <Text style={styles.savingsTitle}>🎯 Tỷ lệ tiết kiệm</Text>
+          <Text style={styles.savingsTitle}>Tỷ lệ tiết kiệm</Text>
           <View style={styles.savingsContent}>
             <Text style={styles.savingsPercentage}>
               {formatCurrency(Math.max(0, data.balance), true)} (
@@ -330,13 +330,13 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
           style={styles.quickButton}
           onPress={() => navigation.navigate("AddIncome")}
         >
-          <Text style={styles.quickButtonText}>💰 Thêm thu nhập</Text>
+          <Text style={styles.quickButtonText}>Thêm thu nhập</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.quickButton, styles.quickButtonSecondary]}
           onPress={() => navigation.navigate("AddExpense")}
         >
-          <Text style={styles.quickButtonTextSecondary}>💳 Thêm chi tiêu</Text>
+          <Text style={styles.quickButtonTextSecondary}>Thêm chi tiêu</Text>
         </TouchableOpacity>
       </View>
 
@@ -345,7 +345,7 @@ const FinancialOverview = ({ navigation, setActiveTab }) => {
         style={styles.fullViewAllButton}
         onPress={handleViewAllExpenses}
       >
-        <Text style={styles.fullViewAllText}>📋 Xem tất cả chi tiêu</Text>
+        <Text style={styles.fullViewAllText}>Xem tất cả chi tiêu</Text>
       </TouchableOpacity>
     </View>
   );

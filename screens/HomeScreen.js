@@ -47,13 +47,13 @@ const categories = [
 
 // Định nghĩa các tab mới (ĐÃ SỬA: bỏ tab budget ở đây)
 const tabs = [
-  { id: "overview", label: "📊 Tổng quan", icon: "stats-chart" },
-  { id: "daily", label: "📅 Hàng ngày", icon: "calendar" },
-  { id: "goals", label: "🎯 Mục tiêu", icon: "trophy" },
+  { id: "overview", label: "📊 Tổng quan", /*icon: "stats-chart" */ },
+  { id: "daily", label: "📅 Hàng ngày", /*icon: "calendar"*/ },
+  { id: "goals", label: "🎯 Mục tiêu", /*icon: "trophy"*/ },
   // { id: "budget", label: "💰 Ngân sách", icon: "wallet" }, // CHỈ HIỆN Ở TAB BUDGET
-  { id: "list", label: "📝 Danh sách", icon: "list" },
+  { id: "list", label: "📝 Danh sách", /*icon: "list"*/ },
   // { id: "stats", label: "📈 Thống kê", icon: "analytics" },
-  { id: "monthly-stats", label: "📊 Tháng", icon: "bar-chart" },
+  { id: "monthly-stats", label: "📊 Tháng", /*icon: "bar-chart" */ },
 ];
 
 export default function HomeScreen() {

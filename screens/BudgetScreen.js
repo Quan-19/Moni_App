@@ -181,7 +181,7 @@ const BudgetScreen = () => {
     <ScrollView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>💰 Ngân sách theo danh mục</Text>
+        <Text style={styles.title}>Ngân sách theo danh mục</Text>
         <Text style={styles.subtitle}>Kiểm soát chi tiêu từng nhóm</Text>
       </View>
 
@@ -230,19 +230,19 @@ const BudgetScreen = () => {
           style={[styles.actionButton, styles.recommendButton]}
           onPress={handleApplyRecommendations}
         >
-          <Text style={styles.actionButtonText}>📊 Gợi ý ngân sách</Text>
+          <Text style={styles.actionButtonText}>Gợi ý ngân sách</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.refreshButton]}
           onPress={handleRefreshBudgets}
         >
-          <Text style={styles.actionButtonText}>🔄 Cập nhật</Text>
+          <Text style={styles.actionButtonText}>Cập nhật</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.resetButton]}
           onPress={handleResetSpending}
         >
-          <Text style={styles.actionButtonText}>🗑️ Đặt lại chi</Text>
+          <Text style={styles.actionButtonText}>Đặt lại chi tiêu</Text>
         </TouchableOpacity>
       </View>
 

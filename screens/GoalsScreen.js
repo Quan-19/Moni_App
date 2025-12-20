@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Modal,
+  Platform,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -18,6 +19,7 @@ import {
 } from "../slices/goalsSlice";
 import { ProgressBar } from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "../firebaseConfig";
 
@@ -39,6 +41,7 @@ const GoalsScreen = () => {
     priority: "medium",
     category: "general",
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     console.log("🎯 GoalsScreen mounted");
@@ -121,11 +124,11 @@ const GoalsScreen = () => {
       // XỬ LÝ DEADLINE
       let deadlineTimestamp = null;
       if (newGoal.deadline && newGoal.deadline.trim()) {
-        const deadlineDate = new Date(newGoal.deadline);
-        if (isNaN(deadlineDate.getTime())) {
+        const deadlineDate = parseDateInput(newGoal.deadline);
+        if (!deadlineDate) {
           Alert.alert(
             "Lỗi",
-            "Ngày hết hạn không hợp lệ. Vui lòng nhập đúng định dạng YYYY-MM-DD"
+            "Ngày hết hạn không hợp lệ. Vui lòng nhập đúng định dạng DD-MM-YYYY"
           );
           return;
         }
@@ -374,6 +377,52 @@ const GoalsScreen = () => {
     return Math.ceil(remainingAmount / monthsLeft);
   };
 
+  const formatDateInput = (value) => {
+    const digits = (value || "").replace(/[^\d]/g, "").slice(0, 8);
+    const day = digits.slice(0, 2);
+    const month = digits.slice(2, 4);
+    const year = digits.slice(4, 8);
+    return [day, month, year].filter(Boolean).join("-");
+  };
+
+  const parseDateInput = (value) => {
+    const digits = (value || "").replace(/[^\d]/g, "");
+    if (digits.length !== 8) return null;
+    const day = Number(digits.slice(0, 2));
+    const month = Number(digits.slice(2, 4));
+    const year = Number(digits.slice(4, 8));
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900) {
+      return null;
+    }
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+      ? date
+      : null;
+  };
+
+  const formatDateFromDate = (date) => {
+    if (!date) return "";
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const handleDateChange = (_, selectedDate) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      const formatted = formatDateFromDate(selectedDate);
+      setNewGoal((prev) => ({ ...prev, deadline: formatted }));
+    }
+  };
+
+  const formatNumberWithCommas = (value) => {
+    if (!value) return "";
+    const cleaned = value.replace(/[^\d]/g, "");
+    if (!cleaned) return "";
+    return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
   // Format currency
   const formatCurrency = (amount) => {
     return (amount || 0).toLocaleString("vi-VN");
@@ -392,7 +441,7 @@ const GoalsScreen = () => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>🎯 Mục tiêu tài chính</Text>
+        <Text style={styles.title}>Mục tiêu tài chính</Text>
         <Text style={styles.subtitle}>Đặt mục tiêu và theo dõi tiến độ</Text>
       </View>
 
@@ -573,15 +622,18 @@ const GoalsScreen = () => {
         <View style={styles.addMoneyModalOverlay}>
           <View style={styles.addMoneyModalContent}>
             <Text style={styles.addMoneyModalTitle}>
-              💰 Thêm tiền vào mục tiêu
+              Thêm tiền vào mục tiêu
             </Text>
 
             <TextInput
               style={styles.addMoneyInput}
               placeholder="Nhập số tiền (VND)"
               keyboardType="numeric"
-              value={addAmount}
-              onChangeText={setAddAmount}
+              value={formatNumberWithCommas(addAmount)}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/[^\d]/g, "");
+                setAddAmount(cleaned);
+              }}
               autoFocus
             />
 
@@ -617,7 +669,7 @@ const GoalsScreen = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🎯 Đặt mục tiêu mới</Text>
+            <Text style={styles.modalTitle}>Đặt mục tiêu mới</Text>
 
             <TextInput
               style={styles.modalInput}
@@ -631,25 +683,31 @@ const GoalsScreen = () => {
               style={styles.modalInput}
               placeholder="Số tiền mục tiêu (VND)"
               keyboardType="numeric"
-              value={newGoal.targetAmount}
-              onChangeText={(text) =>
-                setNewGoal({
-                  ...newGoal,
-                  targetAmount: text.replace(/[^\d]/g, ""),
-                })
-              }
+              value={formatNumberWithCommas(newGoal.targetAmount)}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/[^\d]/g, "");
+                setNewGoal({ ...newGoal, targetAmount: cleaned });
+              }}
             />
 
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Hạn chót (YYYY-MM-DD) - Tùy chọn"
-              value={newGoal.deadline}
-              onChangeText={(text) =>
-                setNewGoal({ ...newGoal, deadline: text })
-              }
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-            />
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.datePickerButtonLabel}>Hạn chót</Text>
+              <Text style={styles.datePickerButtonValue}>
+                {newGoal.deadline || "Chọn ngày"}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={parseDateInput(newGoal.deadline) || new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleDateChange}
+              />
+            )}
 
             <View style={styles.pickerContainer}>
               <Picker
@@ -944,6 +1002,24 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     backgroundColor: "#f9fafb",
+  },
+  datePickerButton: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: "#f9fafb",
+  },
+  datePickerButtonLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  datePickerButtonValue: {
+    fontSize: 16,
+    color: "#1f2937",
+    fontWeight: "600",
   },
   pickerContainer: {
     borderWidth: 1,

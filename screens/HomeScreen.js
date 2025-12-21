@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+
+import React, { useState, useEffect, useCallback, useRef } from "react"; // Thêm useRef
 import {
   View,
   Text,
@@ -8,6 +9,9 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  PanResponder, // Thêm PanResponder
+  Animated,
+  Dimensions,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchExpenses } from "../slices/expensesSlice";
@@ -75,6 +79,122 @@ export default function HomeScreen() {
   const [archivedMonths, setArchivedMonths] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDataInitialized, setIsDataInitialized] = useState(false);
+  
+  // Biến để xác định xem có đang vuốt không
+  const [isSwiping, setIsSwiping] = useState(false);
+  // Vị trí bắt đầu vuốt
+  const panResponderRef = useRef(null);
+  // Animated translateX cho hiệu ứng chuyển tab
+  const translateX = useRef(new Animated.Value(0)).current;
+  const screenWidth = Dimensions.get("window").width;
+  
+  // Khởi tạo PanResponder với hiệu ứng Animated - Tối ưu hóa
+  useEffect(() => {
+    panResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Chỉ bắt khi di chuyển ngang đủ mạnh (dx > |dy| * 2)
+        // Tránh conflict với vertical scroll
+        const isHorizontalMove = Math.abs(gestureState.dx) > 10 && 
+                                 Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
+        return isHorizontalMove;
+      },
+      onMoveShouldSetPanResponderCapture: () => false,
+      onPanResponderGrant: () => {
+        setIsSwiping(true);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        // Giới hạn di chuyển để tránh bị kéo quá xa
+        const maxTranslate = screenWidth * 0.4;
+        const clampedDx = Math.max(-maxTranslate, Math.min(gestureState.dx, maxTranslate));
+        translateX.setValue(clampedDx);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const currentIndex = tabs.findIndex((t) => t.id === activeTab);
+        const hasNext = currentIndex < tabs.length - 1;
+        const hasPrev = currentIndex > 0;
+
+        // Ngưỡng và vận tốc
+        const threshold = 50;
+        const velocity = gestureState.vx;
+        const swipeLeftFast = gestureState.dx < -threshold || (velocity < -0.5 && gestureState.dx < 0);
+        const swipeRightFast = gestureState.dx > threshold || (velocity > 0.5 && gestureState.dx > 0);
+
+        if (swipeLeftFast && hasNext) {
+          // Vuốt sang trái: chuyển sang tab tiếp theo
+          Animated.timing(translateX, {
+            toValue: -screenWidth,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            const nextTab = tabs[currentIndex + 1].id;
+            setActiveTab(nextTab);
+            translateX.setValue(screenWidth);
+            Animated.timing(translateX, {
+              toValue: 0,
+              duration: 250,
+              useNativeDriver: true,
+            }).start(() => setIsSwiping(false));
+          });
+        } else if (swipeRightFast && hasPrev) {
+          // Vuốt sang phải: chuyển sang tab trước
+          Animated.timing(translateX, {
+            toValue: screenWidth,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            const prevTab = tabs[currentIndex - 1].id;
+            setActiveTab(prevTab);
+            translateX.setValue(-screenWidth);
+            Animated.timing(translateX, {
+              toValue: 0,
+              duration: 250,
+              useNativeDriver: true,
+            }).start(() => setIsSwiping(false));
+          });
+        } else {
+          // Không đủ ngưỡng: trả về vị trí cũ với spring animation
+          Animated.spring(translateX, {
+            toValue: 0,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+          }).start(() => setIsSwiping(false));
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }).start(() => setIsSwiping(false));
+      },
+      onShouldBlockNativeResponder: () => {
+        // Không block native responder để cho phép scroll hoạt động
+        return false;
+      },
+    });
+  }, [activeTab, translateX, screenWidth]);
+
+  // Hàm xử lý vuốt từ trái sang phải (về tab trước)
+  const handleSwipeRight = () => {
+    const currentIndex = tabs.findIndex(tab => tab.id === activeTab);
+    if (currentIndex > 0) {
+      const prevTab = tabs[currentIndex - 1];
+      setActiveTab(prevTab.id);
+    }
+  };
+
+  // Hàm xử lý vuốt từ phải sang trái (đến tab sau)
+  const handleSwipeLeft = () => {
+    const currentIndex = tabs.findIndex(tab => tab.id === activeTab);
+    if (currentIndex < tabs.length - 1) {
+      const nextTab = tabs[currentIndex + 1];
+      setActiveTab(nextTab.id);
+    }
+  };
 
   // Hàm để khởi tạo và đồng bộ dữ liệu
   const initializeData = useCallback(async () => {
@@ -617,8 +737,12 @@ export default function HomeScreen() {
       {/* Tab Navigation */}
       {renderTabNavigation()}
 
-      {/* Main Content */}
-      <View style={styles.content}>{renderTabContent()}</View>
+      {/* Main Content với gesture handler + Animated */}
+      <View style={styles.content} {...panResponderRef.current?.panHandlers}>
+        <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
+          {renderTabContent()}
+        </Animated.View>
+      </View>
 
       {/* Floating Action Buttons */}
       {renderFloatingButton()}

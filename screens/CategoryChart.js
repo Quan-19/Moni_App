@@ -131,12 +131,15 @@ export default function CategoryChart({ expenses }) {
             <PieChart
               data={chartData}
               width={screenWidth}
-              height={240}
+              height={280}
               chartConfig={{
                 color: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
-                strokeWidth: 0,
+                strokeWidth: 2,
                 backgroundGradientFrom: "#ffffff",
-                backgroundGradientTo: "#ffffff",
+                backgroundGradientTo: "#f8fafc",
+                style: {
+                  borderRadius: 20,
+                },
               }}
               accessor="population"
               backgroundColor="transparent"
@@ -260,18 +263,20 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.xl,
     padding: 0,
     marginBottom: SPACING.xl,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: "#3b82f6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     overflow: "hidden",
   },
   chartContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
     width: "100%",
+    backgroundColor: "#f8fafc",
   },
   detailsSection: {
     marginBottom: SPACING.xl,

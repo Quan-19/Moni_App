@@ -25,7 +25,6 @@ import ListTab from "../components/tabs/ListTab";
 import DailyTracker from "../components/DailyTracker";
 import BudgetScreen from "../screens/BudgetScreen";
 import GoalsScreen from "../screens/GoalsScreen";
-import MonthlyChallenge from "../components/MonthlyChallenge";
 import FinancialOverview from "../components/FinancialOverview";
 
 // Import monthly manager
@@ -422,15 +421,7 @@ export default function HomeScreen() {
     </ScrollView>
   );
 
-  // Render thử thách tháng (chỉ hiện ở tab overview)
-  const renderMonthlyChallenge = () => {
-    if (activeTab === "overview" && !showArchived) {
-      return (
-        <MonthlyChallenge currentMonthExpenses={getCurrentMonthExpenses()} />
-      );
-    }
-    return null;
-  };
+
 
   const renderTabContent = () => {
     if (isLoading || !isDataInitialized) {
@@ -467,7 +458,6 @@ export default function HomeScreen() {
               navigation={navigation}
               setActiveTab={setActiveTab}
             />
-            {renderMonthlyChallenge()}
             <OverviewTab {...commonProps} />
           </ScrollView>
         );

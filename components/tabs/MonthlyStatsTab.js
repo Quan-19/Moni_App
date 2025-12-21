@@ -10,9 +10,17 @@ import {
   Alert,
 } from "react-native";
 import { useSelector } from "react-redux";
-import { BarChart, LineChart } from "react-native-chart-kit";
+import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import monthlyManager from "../../utils/monthlyManager";
+import { 
+  FONT_SIZES, 
+  SPACING, 
+  BORDER_RADIUS, 
+  ICON_SIZES,
+  GAPS,
+  getResponsiveHeight
+} from "../../utils/ResponsiveUtils";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -171,7 +179,8 @@ const MonthlyStatsTab = () => {
         datasets: [
           {
             data: monthlyData.map((item) => item.amount),
-            color: () => "#3b82f6", // Xanh dương cho số tiền
+            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`, // Xanh dương cho số tiền
+            strokeWidth: 2,
             label: "Số tiền",
             withDots: true,
           },
@@ -183,7 +192,8 @@ const MonthlyStatsTab = () => {
         datasets: [
           {
             data: monthlyData.map((item) => item.count),
-            color: () => "#10b981", // Xanh lá cho số giao dịch
+            color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Xanh lá cho số giao dịch
+            strokeWidth: 2,
             label: "Số giao dịch",
             withDots: true,
           },
@@ -191,21 +201,31 @@ const MonthlyStatsTab = () => {
       };
     } else if (chartType === "combined") {
       // Tạo biểu đồ kết hợp với 2 trục Y
+      // Normalize dữ liệu số tiền để phù hợp với scale của số giao dịch
+      const maxAmount = Math.max(...monthlyData.map((item) => item.amount), 1);
+      const maxCount = Math.max(...monthlyData.map((item) => item.count), 1);
+      const scale = maxCount / maxAmount;
+
       return {
         labels,
         datasets: [
           {
-            data: monthlyData.map((item) => item.amount),
-            color: () => "#3b82f6",
+            data: monthlyData.map((item) => item.amount * scale),
+            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`, // Xanh dương
+            strokeWidth: 2.5,
             label: "Số tiền (₫)",
-            yAxisID: "left",
+            withDots: true,
+            dotColor: "#3b82f6",
+            dotSize: 6,
           },
           {
             data: monthlyData.map((item) => item.count),
-            color: () => "#10b981",
+            color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Xanh lá
+            strokeWidth: 2.5,
             label: "Số giao dịch",
-            yAxisID: "right",
             withDots: true,
+            dotColor: "#10b981",
+            dotSize: 6,
           },
         ],
       };
@@ -241,12 +261,8 @@ const MonthlyStatsTab = () => {
     if (chartType === "combined") {
       return {
         ...baseConfig,
-        formatYLabel: (value, index) => {
-          // Trục trái cho số tiền
-          if (index === 0) {
-            return formatSmartCurrency(value);
-          }
-          // Trục phải cho số giao dịch
+        formatYLabel: (value) => {
+          // Hiển thị giá trị đã normalize
           return Math.round(value).toString();
         },
       };
@@ -256,7 +272,10 @@ const MonthlyStatsTab = () => {
         formatYLabel: (value) => formatSmartCurrency(value),
       };
     } else {
-      return baseConfig;
+      return {
+        ...baseConfig,
+        formatYLabel: (value) => Math.round(value).toString(),
+      };
     }
   };
 
@@ -520,26 +539,48 @@ const MonthlyStatsTab = () => {
               contentContainerStyle={styles.chartScrollContent}
             >
               <View style={styles.chartWrapper}>
-                <BarChart
-                  data={chartData}
-                  width={chartWidth}
-                  height={280}
-                  chartConfig={chartConfig}
-                  style={styles.chart}
-                  fromZero
-                  showValuesOnTopOfBars={false}
-                  yAxisLabel=""
-                  yAxisSuffix=""
-                  verticalLabelRotation={0}
-                  segments={4}
-                  withInnerLines={true}
-                  withHorizontalLabels={true}
-                  withVerticalLabels={true}
-                  yLabelsOffset={10}
-                  xLabelsOffset={-5}
-                  barPercentage={0.7}
-                  showBarTops={false}
-                />
+                {chartType === "count" ? (
+                  <BarChart
+                    data={chartData}
+                    width={chartWidth}
+                    height={280}
+                    chartConfig={chartConfig}
+                    style={styles.chart}
+                    fromZero
+                    showValuesOnTopOfBars={false}
+                    yAxisLabel=""
+                    yAxisSuffix=""
+                    verticalLabelRotation={0}
+                    segments={4}
+                    withInnerLines={true}
+                    withHorizontalLabels={true}
+                    withVerticalLabels={true}
+                    yLabelsOffset={10}
+                    xLabelsOffset={-5}
+                    barPercentage={0.7}
+                    showBarTops={false}
+                  />
+                ) : (
+                  <LineChart
+                    data={chartData}
+                    width={chartWidth}
+                    height={280}
+                    chartConfig={chartConfig}
+                    style={styles.chart}
+                    fromZero
+                    bezier
+                    yAxisLabel=""
+                    yAxisSuffix=""
+                    verticalLabelRotation={0}
+                    segments={4}
+                    withInnerLines={true}
+                    withHorizontalLabels={true}
+                    withVerticalLabels={true}
+                    withDots={true}
+                    yLabelsOffset={10}
+                    xLabelsOffset={-5}
+                  />
+                )}
 
                 {/* Legend */}
                 <View style={styles.legendContainer}>

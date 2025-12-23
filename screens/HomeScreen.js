@@ -75,10 +75,8 @@ export default function HomeScreen() {
     category: "All",
   });
   const [currentMonth, setCurrentMonth] = useState(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [archivedMonths, setArchivedMonths] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDataInitialized, setIsDataInitialized] = useState(false);
+  const [isDataInitialized, setIsDataInitialized] = useState(false); // Danh sách ID tháng đang được mở rộng
   
   // Biến để xác định xem có đang vuốt không
   const [isSwiping, setIsSwiping] = useState(false);
@@ -207,16 +205,13 @@ export default function HomeScreen() {
 
       // Lấy thông tin tháng hiện tại
       const monthInfo = monthlyManager.getCurrentMonthInfo();
-      const archived = monthlyManager.getArchivedMonths();
 
       setCurrentMonth(monthInfo);
-      setArchivedMonths(archived);
       setIsDataInitialized(true);
 
       console.log("✅ Khởi tạo thành công:", {
         currentMonth: monthInfo?.name,
         currentMonthExpenses: monthInfo?.expenses?.length,
-        archivedMonths: archived.length,
       });
 
       return monthInfo;
@@ -303,10 +298,8 @@ export default function HomeScreen() {
 
           // Lấy lại thông tin tháng hiện tại
           const monthInfo = monthlyManager.getCurrentMonthInfo();
-          const archived = monthlyManager.getArchivedMonths();
 
           setCurrentMonth(monthInfo);
-          setArchivedMonths(archived);
 
           console.log("✅ Cập nhật thành công:", {
             currentMonth: monthInfo?.name,
@@ -413,25 +406,7 @@ export default function HomeScreen() {
     return true;
   });
 
-  // Chuyển đổi giữa xem tháng hiện tại và archive
-  const toggleView = () => {
-    setShowArchived(!showArchived);
-  };
 
-  // Chuyển sang xem tháng khác
-  const switchMonth = async (monthId) => {
-    const month = await monthlyManager.switchToMonth(monthId);
-    if (month) {
-      setCurrentMonth(month);
-      setShowArchived(false);
-    }
-  };
-
-  // Quay lại tháng hiện tại
-  const backToCurrentMonth = async () => {
-    await initializeData();
-    setShowArchived(false);
-  };
 
   // Render header với thông tin tháng
   const renderMonthHeader = () => {
@@ -453,16 +428,9 @@ export default function HomeScreen() {
             {getCurrentMonthExpenses().length} chi •{" "}
             {getCurrentMonthExpenses()
               .reduce((sum, e) => sum + (e?.amount || 0), 0)
-              .toLocaleString("vi-VN")}{" "}
-            VND
+              .toLocaleString("vi-VN")} ₫
           </Text>
         </View>
-
-        <TouchableOpacity style={styles.viewArchiveButton} onPress={toggleView}>
-          <Text style={styles.viewArchiveText}>
-            {showArchived ? "↩️ Tháng nay" : "📚 Tháng cũ"}
-          </Text>
-        </TouchableOpacity>
       </View>
     );
   };
@@ -483,66 +451,6 @@ export default function HomeScreen() {
     return null;
   };
 
-  // Render danh sách tháng đã lưu
-  const renderArchiveView = () => (
-    <ScrollView
-      style={styles.archiveContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.archiveTitle}>📚 Tháng đã lưu</Text>
-
-      {archivedMonths.length === 0 ? (
-        <View style={styles.emptyArchive}>
-          <Text style={styles.emptyArchiveText}>
-            Chưa có tháng nào được lưu
-          </Text>
-          <Text style={styles.emptyArchiveSubtext}>
-            Dữ liệu sẽ tự động được lưu khi sang tháng mới
-          </Text>
-        </View>
-      ) : (
-        <>
-          {archivedMonths.map((month) => (
-            <TouchableOpacity
-              key={month.id}
-              style={styles.archiveItem}
-              onPress={() => switchMonth(month.id)}
-            >
-              <View style={styles.archiveItemLeft}>
-                <Text style={styles.archiveMonthName}>
-                  {month?.name || "Không có tên"}
-                </Text>
-                <Text style={styles.archiveDate}>
-                  {month?.startDate
-                    ? new Date(month.startDate).toLocaleDateString("vi-VN")
-                    : "Không có ngày"}
-                </Text>
-              </View>
-
-              <View style={styles.archiveItemRight}>
-                <Text style={styles.archiveTotal}>
-                  {(month?.total || 0).toLocaleString("vi-VN")} VND
-                </Text>
-                <Text style={styles.archiveCount}>
-                  {month?.expenses?.length || 0} khoản chi
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </>
-      )}
-
-      <TouchableOpacity
-        style={styles.backToCurrentButton}
-        onPress={backToCurrentMonth}
-      >
-        <Text style={styles.backToCurrentText}>↩️ Quay lại tháng hiện tại</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-
-
-
   const renderTabContent = () => {
     if (isLoading || !isDataInitialized) {
       return (
@@ -553,10 +461,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       );
-    }
-
-    if (showArchived) {
-      return renderArchiveView();
     }
 
     const commonProps = {
@@ -600,7 +504,7 @@ export default function HomeScreen() {
 
   // Custom Tab Navigation Component
   const renderTabNavigation = () => {
-    if (showArchived || isLoading || !isDataInitialized) return null;
+    if (isLoading || !isDataInitialized) return null;
 
     return (
       <View style={styles.tabContainer}>
@@ -640,7 +544,7 @@ export default function HomeScreen() {
 
   // Nút Floating Action Button đa chức năng
   const renderFloatingButton = () => {
-    if (showArchived || isLoading || !isDataInitialized) return null;
+    if (isLoading || !isDataInitialized) return null;
 
     const getFloatingButtonAction = () => {
       switch (activeTab) {
@@ -816,18 +720,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     flex: 1,
   },
-  viewArchiveButton: {
-    backgroundColor: "#f3f4f6",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginLeft: 12,
-  },
-  viewArchiveText: {
-    fontSize: 14,
-    color: "#374151",
-    fontWeight: "500",
-  },
   endOfMonthAlert: {
     backgroundColor: "#fef3c7",
     padding: 10,
@@ -889,86 +781,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-  },
-  archiveContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  archiveTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  emptyArchive: {
-    backgroundColor: "#fff",
-    padding: 40,
-    borderRadius: 16,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  emptyArchiveText: {
-    fontSize: 16,
-    color: "#6b7280",
-    fontWeight: "500",
-    marginBottom: 8,
-  },
-  emptyArchiveSubtext: {
-    fontSize: 14,
-    color: "#9ca3af",
-    textAlign: "center",
-  },
-  archiveItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  archiveItemLeft: {
-    flex: 1,
-  },
-  archiveMonthName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-  },
-  archiveDate: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  archiveItemRight: {
-    alignItems: "flex-end",
-  },
-  archiveTotal: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#059669",
-  },
-  archiveCount: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  backToCurrentButton: {
-    backgroundColor: "#3b82f6",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  backToCurrentText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
   floatingButtonsContainer: {
     position: "absolute",

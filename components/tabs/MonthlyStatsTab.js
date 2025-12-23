@@ -7,338 +7,206 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
-  Alert,
+  Modal,
+  FlatList,
 } from "react-native";
 import { useSelector } from "react-redux";
-import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
+import { BarChart, LineChart } from "react-native-chart-kit";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import monthlyManager from "../../utils/monthlyManager";
-import { 
-  FONT_SIZES, 
-  SPACING, 
-  BORDER_RADIUS, 
-  ICON_SIZES,
-  GAPS,
-  getResponsiveHeight
-} from "../../utils/ResponsiveUtils";
 
 const screenWidth = Dimensions.get("window").width;
 
 const MonthlyStatsTab = () => {
   const allExpenses = useSelector((state) => state.expenses.items);
+  const allIncomes = useSelector((state) => state.incomes.items);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState([]);
-  const [allMonthsData, setAllMonthsData] = useState([]);
-  const [chartType, setChartType] = useState("combined"); // 'amount', 'count', 'combined'
-  const [viewMode, setViewMode] = useState("chart"); // 'chart', 'table'
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalViewType, setModalViewType] = useState("expense"); // 'expense', 'income'
 
-  // Format số tiền thông minh
-  const formatSmartCurrency = (amount) => {
-    if (amount === 0) return "0 ₫";
+  useEffect(() => {
+    calculateMonthlyStats();
+  }, [allExpenses, allIncomes, selectedYear]);
 
-    if (amount >= 1000000000) {
-      return `${(amount / 1000000000).toFixed(1)} tỷ`;
-    } else if (amount >= 1000000) {
-      return `${(amount / 1000000).toFixed(1)} tr`;
-    } else if (amount >= 1000) {
-      return `${(amount / 1000).toFixed(0)}k`;
-    }
-    return amount.toLocaleString("vi-VN") + " ₫";
-  };
-
-  // Format số đầy đủ khi cần
-  const formatFullCurrency = (amount) => {
-    return amount.toLocaleString("vi-VN") + " ₫";
-  };
-
-  // Lấy tất cả các năm có trong dữ liệu
-  const getAvailableYears = () => {
-    const years = new Set();
-    allMonthsData.forEach((month) => {
-      const year = new Date(month.startDate).getFullYear();
-      years.add(year);
-    });
-
-    if (years.size === 0) {
-      years.add(new Date().getFullYear());
-    }
-
-    return Array.from(years).sort((a, b) => b - a);
-  };
-
-  // Tính toán dữ liệu thống kê
-  const calculateStats = async () => {
+  // Tính toán thống kê theo tháng
+  const calculateMonthlyStats = () => {
     try {
       setLoading(true);
 
-      // Lấy tất cả tháng từ monthly manager
-      const currentMonth = monthlyManager.getCurrentMonthInfo();
-      const archivedMonths = monthlyManager.getArchivedMonths();
+      // Tạo dữ liệu cho 12 tháng
+      const months = [];
+      for (let i = 0; i < 12; i++) {
+        const monthStart = new Date(selectedYear, i, 1);
+        const monthEnd = new Date(selectedYear, i + 1, 0);
 
-      const allMonths = [...archivedMonths];
-      if (currentMonth) {
-        allMonths.push(currentMonth);
-      }
-
-      allMonths.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-      setAllMonthsData(allMonths);
-
-      // Lọc dữ liệu theo năm được chọn
-      const filteredMonths = allMonths.filter((month) => {
-        const year = new Date(month.startDate).getFullYear();
-        return year === selectedYear;
-      });
-
-      // Tạo dữ liệu cho 12 tháng của năm
-      const months = [
-        "T1",
-        "T2",
-        "T3",
-        "T4",
-        "T5",
-        "T6",
-        "T7",
-        "T8",
-        "T9",
-        "T10",
-        "T11",
-        "T12",
-      ];
-
-      const monthlyDataTemp = months.map((monthName, index) => {
-        const monthData = filteredMonths.find((month) => {
-          const date = new Date(month.startDate);
-          return (
-            date.getMonth() === index && date.getFullYear() === selectedYear
-          );
+        // Lọc chi tiêu trong tháng
+        const monthExpenses = allExpenses.filter((expense) => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate >= monthStart && expenseDate <= monthEnd;
         });
 
-        // Tính trung bình mỗi giao dịch
-        let avgPerTransaction = 0;
-        if (monthData && monthData.expenses.length > 0) {
-          avgPerTransaction = monthData.total / monthData.expenses.length;
-        }
+        // Lọc thu nhập trong tháng
+        const monthIncomes = allIncomes.filter((income) => {
+          const incomeDate = new Date(income.date);
+          return incomeDate >= monthStart && incomeDate <= monthEnd;
+        });
 
-        return {
-          month: monthName,
-          fullMonth: `Tháng ${index + 1}`,
-          amount: monthData ? monthData.total : 0,
-          count: monthData ? monthData.expenses.length : 0,
-          monthNumber: index + 1,
-          monthId: monthData ? monthData.id : null,
-          avgPerTransaction,
-          hasData: !!monthData && monthData.expenses.length > 0,
-        };
-      });
+        const totalExpense = monthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+        const totalIncome = monthIncomes.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-      setMonthlyData(monthlyDataTemp);
+        months.push({
+          month: i + 1,
+          monthName: `T${i + 1}`,
+          totalExpense,
+          totalIncome,
+          balance: totalIncome - totalExpense,
+          expenseCount: monthExpenses.length,
+          incomeCount: monthIncomes.length,
+          expenses: monthExpenses,
+          incomes: monthIncomes,
+        });
+      }
+
+      setMonthlyData(months);
+      setLoading(false);
     } catch (error) {
-      console.error("Error calculating stats:", error);
-      Alert.alert("Lỗi", "Không thể tính toán thống kê");
-    } finally {
+      console.error("Lỗi tính toán thống kê:", error);
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    calculateStats();
-  }, [allExpenses, selectedYear]);
-
-  // Tính tổng chi tiêu của năm
-  const getYearTotal = () => {
-    return monthlyData.reduce((sum, month) => sum + month.amount, 0);
+  // Xem chi tiết tháng
+  const viewMonthDetail = (monthData) => {
+    setSelectedMonth(monthData);
+    setModalVisible(true);
   };
 
-  // Tính trung bình chi tiêu mỗi tháng
-  const getMonthlyAverage = () => {
-    const monthsWithData = monthlyData.filter((month) => month.amount > 0);
-    if (monthsWithData.length === 0) return 0;
-    return getYearTotal() / monthsWithData.length;
+  // Chuyển năm
+  const changeYear = (direction) => {
+    setSelectedYear((prev) => prev + direction);
   };
 
-  // Tính tổng số giao dịch
-  const getYearTransactionCount = () => {
-    return monthlyData.reduce((sum, month) => sum + month.count, 0);
+  // Lấy tháng hiện tại
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return now.getFullYear() === selectedYear ? now.getMonth() + 1 : null;
   };
 
-  // Tính trung bình giá trị mỗi giao dịch
-  const getAverageTransactionValue = () => {
-    const totalAmount = getYearTotal();
-    const totalTransactions = getYearTransactionCount();
-    return totalTransactions > 0 ? totalAmount / totalTransactions : 0;
+  // Lấy danh sách năm có dữ liệu
+  const getAvailableYears = () => {
+    const years = new Set();
+    [...allExpenses, ...allIncomes].forEach((item) => {
+      const year = new Date(item.date).getFullYear();
+      years.add(year);
+    });
+    const yearArray = Array.from(years).sort((a, b) => b - a);
+    if (yearArray.length === 0) yearArray.push(new Date().getFullYear());
+    return yearArray;
   };
 
-  // Chuẩn bị dữ liệu cho biểu đồ
-  const prepareChartData = () => {
-    const labels = monthlyData.map((item) => item.month);
-
-    if (chartType === "amount") {
-      return {
-        labels,
-        datasets: [
-          {
-            data: monthlyData.map((item) => item.amount),
-            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`, // Xanh dương cho số tiền
-            strokeWidth: 2,
-            label: "Số tiền",
-            withDots: true,
-          },
-        ],
-      };
-    } else if (chartType === "count") {
-      return {
-        labels,
-        datasets: [
-          {
-            data: monthlyData.map((item) => item.count),
-            color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Xanh lá cho số giao dịch
-            strokeWidth: 2,
-            label: "Số giao dịch",
-            withDots: true,
-          },
-        ],
-      };
-    } else if (chartType === "combined") {
-      // Tạo biểu đồ kết hợp với 2 trục Y
-      // Normalize dữ liệu số tiền để phù hợp với scale của số giao dịch
-      const maxAmount = Math.max(...monthlyData.map((item) => item.amount), 1);
-      const maxCount = Math.max(...monthlyData.map((item) => item.count), 1);
-      const scale = maxCount / maxAmount;
-
-      return {
-        labels,
-        datasets: [
-          {
-            data: monthlyData.map((item) => item.amount * scale),
-            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`, // Xanh dương
-            strokeWidth: 2.5,
-            label: "Số tiền (₫)",
-            withDots: true,
-            dotColor: "#3b82f6",
-            dotSize: 6,
-          },
-          {
-            data: monthlyData.map((item) => item.count),
-            color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Xanh lá
-            strokeWidth: 2.5,
-            label: "Số giao dịch",
-            withDots: true,
-            dotColor: "#10b981",
-            dotSize: 6,
-          },
-        ],
-      };
+  // Format tiền tệ
+  const formatCurrency = (amount) => {
+    if (amount >= 1000000000) {
+      return `${(amount / 1000000000).toFixed(1)}B ₫`;
     }
-  };
-
-  // Cấu hình biểu đồ
-  const getChartConfig = () => {
-    const baseConfig = {
-      backgroundColor: "#ffffff",
-      backgroundGradientFrom: "#ffffff",
-      backgroundGradientTo: "#ffffff",
-      decimalPlaces: 0,
-      color: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
-      labelColor: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
-      style: {
-        borderRadius: 16,
-      },
-      propsForLabels: {
-        fontSize: 10,
-        fontWeight: "500",
-      },
-      propsForBackgroundLines: {
-        strokeWidth: 1,
-        stroke: "#e5e7eb",
-      },
-      propsForDots: {
-        r: "4",
-        strokeWidth: "2",
-      },
-    };
-
-    if (chartType === "combined") {
-      return {
-        ...baseConfig,
-        formatYLabel: (value) => {
-          // Hiển thị giá trị đã normalize
-          return Math.round(value).toString();
-        },
-      };
-    } else if (chartType === "amount") {
-      return {
-        ...baseConfig,
-        formatYLabel: (value) => formatSmartCurrency(value),
-      };
-    } else {
-      return {
-        ...baseConfig,
-        formatYLabel: (value) => Math.round(value).toString(),
-      };
+    if (amount >= 1000000) {
+      return `${(amount / 1000000).toFixed(1)}M ₫`;
     }
+    if (amount >= 1000) {
+      return `${(amount / 1000).toFixed(0)}K ₫`;
+    }
+    return `${amount} ₫`;
   };
 
-  // Tìm tháng có chi tiêu cao nhất
-  const getMaxSpendingMonth = () => {
-    const monthsWithData = monthlyData.filter((month) => month.hasData);
-    if (monthsWithData.length === 0) return null;
+  // Tổng chi tiêu trong năm
+  const yearTotalExpense = monthlyData.reduce((sum, m) => sum + m.totalExpense, 0);
+  const yearTotalIncome = monthlyData.reduce((sum, m) => sum + m.totalIncome, 0);
+  const yearBalance = yearTotalIncome - yearTotalExpense;
 
-    return monthsWithData.reduce((prev, current) =>
-      prev.amount > current.amount ? prev : current
-    );
+  // Dữ liệu cho biểu đồ chi tiêu
+  const expenseChartData = {
+    labels: monthlyData.map((m) => m.monthName),
+    datasets: [
+      {
+        data: monthlyData.map((m) => m.totalExpense || 0),
+        color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+      },
+    ],
   };
 
-  // Tìm tháng có chi tiêu thấp nhất
-  const getMinSpendingMonth = () => {
-    const monthsWithData = monthlyData.filter((month) => month.hasData);
-    if (monthsWithData.length === 0) return null;
+  // Dữ liệu cho biểu đồ thu nhập
+  const incomeChartData = {
+    labels: monthlyData.map((m) => m.monthName),
+    datasets: [
+      {
+        data: monthlyData.map((m) => m.totalIncome || 0),
+        color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
+      },
+    ],
+  };
 
-    return monthsWithData.reduce((prev, current) =>
-      prev.amount < current.amount ? prev : current
-    );
+  // Dữ liệu cho biểu đồ so sánh
+  const comparisonChartData = {
+    labels: monthlyData.map((m) => m.monthName),
+    datasets: [
+      {
+        data: monthlyData.map((m) => m.totalIncome || 0),
+        color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
+      },
+      {
+        data: monthlyData.map((m) => m.totalExpense || 0),
+        color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+      },
+    ],
+    legend: ["Thu nhập", "Chi tiêu"],
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={styles.loadingText}>Đang tải thống kê...</Text>
+        <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
       </View>
     );
   }
 
-  const yearTotal = getYearTotal();
-  const monthlyAverage = getMonthlyAverage();
-  const transactionCount = getYearTransactionCount();
-  const avgTransactionValue = getAverageTransactionValue();
-  const hasData = monthlyData.some((month) => month.hasData);
-  const maxMonth = getMaxSpendingMonth();
-  const minMonth = getMinSpendingMonth();
-  const chartData = prepareChartData();
-  const chartConfig = getChartConfig();
-
-  // Tính chiều rộng biểu đồ
-  const chartWidth = Math.max(screenWidth * 1.2, screenWidth);
-
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
+    <ScrollView style={styles.container}>
+      {/* Header với điều hướng năm */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>📊 Thống Kê {selectedYear}</Text>
-        <Text style={styles.headerSubtitle}>
-          {hasData
-            ? `Đã chi ${formatSmartCurrency(yearTotal)} trong năm`
-            : "Chưa có chi tiêu"}
-        </Text>
+        <View style={styles.headerLeft}>
+          <View>
+            <Text style={styles.headerTitle}>Thống kê tháng</Text>
+            <Text style={styles.headerSubtitle}>
+              {yearTotalExpense > 0
+                ? `Chi ${formatCurrency(yearTotalExpense)} trong năm`
+                : "Chưa có dữ liệu"}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={calculateMonthlyStats}
+        >
+          <Ionicons name="refresh" size={22} color="#3b82f6" />
+        </TouchableOpacity>
       </View>
 
-      {/* Year Selector */}
-      <View style={styles.selectorRow}>
+      {/* Year Selector với nút prev/next */}
+      <View style={styles.yearSelectorContainer}>
+        <TouchableOpacity
+          style={styles.yearNavButton}
+          onPress={() => changeYear(-1)}
+        >
+          <Ionicons name="chevron-back" size={20} color="#3b82f6" />
+        </TouchableOpacity>
+        
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.yearScroll}
+          style={styles.yearSelector}
         >
           {getAvailableYears().map((year) => (
             <TouchableOpacity
@@ -360,475 +228,347 @@ const MonthlyStatsTab = () => {
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </View>
-
-      {/* View Mode Selector */}
-      <View style={styles.viewModeSelector}>
-        <TouchableOpacity
-          style={[
-            styles.viewModeButton,
-            viewMode === "chart" && styles.viewModeButtonActive,
-          ]}
-          onPress={() => setViewMode("chart")}
-        >
-          <Ionicons
-            name="bar-chart-outline"
-            size={20}
-            color={viewMode === "chart" ? "#fff" : "#6b7280"}
-          />
-          <Text
-            style={[
-              styles.viewModeText,
-              viewMode === "chart" && styles.viewModeTextActive,
-            ]}
-          >
-            Biểu đồ
-          </Text>
-        </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.viewModeButton,
-            viewMode === "table" && styles.viewModeButtonActive,
-          ]}
-          onPress={() => setViewMode("table")}
+          style={styles.yearNavButton}
+          onPress={() => changeYear(1)}
         >
-          <Ionicons
-            name="grid-outline"
-            size={20}
-            color={viewMode === "table" ? "#fff" : "#6b7280"}
-          />
-          <Text
-            style={[
-              styles.viewModeText,
-              viewMode === "table" && styles.viewModeTextActive,
-            ]}
-          >
-            Bảng số liệu
-          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
         </TouchableOpacity>
       </View>
 
-      {/* Chart Type Selector */}
-      {viewMode === "chart" && (
-        <View style={styles.chartTypeSelector}>
-          <TouchableOpacity
-            style={[
-              styles.chartTypeButton,
-              chartType === "amount" && styles.chartTypeButtonActive,
-            ]}
-            onPress={() => setChartType("amount")}
-          >
-            <Ionicons
-              name="cash-outline"
-              size={16}
-              color={chartType === "amount" ? "#fff" : "#6b7280"}
-            />
-            <Text
-              style={[
-                styles.chartTypeText,
-                chartType === "amount" && styles.chartTypeTextActive,
-              ]}
-            >
-              Số tiền
+      {/* Summary Cards */}
+      <View style={styles.summaryContainer}>
+        <View style={[styles.summaryCard, { borderLeftColor: "#22c55e" }]}>
+          <Ionicons name="trending-up" size={24} color="#22c55e" />
+          <View style={styles.summaryContent}>
+            <Text style={styles.summaryLabel}>Thu nhập</Text>
+            <Text style={[styles.summaryValue, { color: "#22c55e" }]}>
+              {formatCurrency(yearTotalIncome)}
             </Text>
-          </TouchableOpacity>
+          </View>
+        </View>
 
-          <TouchableOpacity
-            style={[
-              styles.chartTypeButton,
-              chartType === "count" && styles.chartTypeButtonActive,
-            ]}
-            onPress={() => setChartType("count")}
-          >
-            <Ionicons
-              name="list-outline"
-              size={16}
-              color={chartType === "count" ? "#fff" : "#6b7280"}
-            />
-            <Text
-              style={[
-                styles.chartTypeText,
-                chartType === "count" && styles.chartTypeTextActive,
-              ]}
-            >
-              Số giao dịch
+        <View style={[styles.summaryCard, { borderLeftColor: "#ef4444" }]}>
+          <Ionicons name="trending-down" size={24} color="#ef4444" />
+          <View style={styles.summaryContent}>
+            <Text style={styles.summaryLabel}>Chi tiêu</Text>
+            <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
+              {formatCurrency(yearTotalExpense)}
             </Text>
-          </TouchableOpacity>
+          </View>
+        </View>
 
-          <TouchableOpacity
-            style={[
-              styles.chartTypeButton,
-              chartType === "combined" && styles.chartTypeButtonActive,
-            ]}
-            onPress={() => setChartType("combined")}
-          >
-            <Ionicons
-              name="layers-outline"
-              size={16}
-              color={chartType === "combined" ? "#fff" : "#6b7280"}
-            />
+        <View
+          style={[
+            styles.summaryCard,
+            { borderLeftColor: yearBalance >= 0 ? "#3b82f6" : "#f59e0b" },
+          ]}
+        >
+          <Ionicons
+            name={yearBalance >= 0 ? "wallet" : "alert-circle"}
+            size={24}
+            color={yearBalance >= 0 ? "#3b82f6" : "#f59e0b"}
+          />
+          <View style={styles.summaryContent}>
+            <Text style={styles.summaryLabel}>Còn lại</Text>
             <Text
               style={[
-                styles.chartTypeText,
-                chartType === "combined" && styles.chartTypeTextActive,
+                styles.summaryValue,
+                { color: yearBalance >= 0 ? "#3b82f6" : "#f59e0b" },
               ]}
             >
-              Kết hợp
+              {formatCurrency(Math.abs(yearBalance))}
             </Text>
-          </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Biểu đồ so sánh */}
+      {monthlyData.length > 0 && (
+        <View style={styles.chartSection}>
+          <Text style={styles.chartTitle}>So sánh thu nhập & chi tiêu</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <BarChart
+              data={comparisonChartData}
+              width={Math.max(screenWidth - 40, monthlyData.length * 60)}
+              height={220}
+              chartConfig={{
+                backgroundColor: "#fff",
+                backgroundGradientFrom: "#fff",
+                backgroundGradientTo: "#fff",
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: {
+                  borderRadius: 16,
+                },
+                propsForBackgroundLines: {
+                  strokeDasharray: "",
+                  stroke: "#e5e7eb",
+                },
+              }}
+              style={styles.chart}
+              fromZero
+              showValuesOnTopOfBars={false}
+            />
+          </ScrollView>
         </View>
       )}
 
-      {/* Summary Stats */}
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
-          <View style={[styles.summaryIcon, { backgroundColor: "#dbeafe" }]}>
-            <Ionicons name="cash-outline" size={20} color="#3b82f6" />
-          </View>
-          <Text style={styles.summaryValue}>
-            {formatSmartCurrency(yearTotal)}
-          </Text>
-          <Text style={styles.summaryLabel}>Tổng chi</Text>
+      {/* Biểu đồ chi tiêu */}
+      {monthlyData.length > 0 && (
+        <View style={styles.chartSection}>
+          <Text style={styles.chartTitle}>Xu hướng chi tiêu</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <LineChart
+              data={expenseChartData}
+              width={Math.max(screenWidth - 40, monthlyData.length * 60)}
+              height={220}
+              chartConfig={{
+                backgroundColor: "#fff",
+                backgroundGradientFrom: "#fff",
+                backgroundGradientTo: "#fff",
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: {
+                  borderRadius: 16,
+                },
+                propsForDots: {
+                  r: "4",
+                  strokeWidth: "2",
+                  stroke: "#ef4444",
+                },
+                propsForBackgroundLines: {
+                  strokeDasharray: "",
+                  stroke: "#e5e7eb",
+                },
+              }}
+              bezier
+              style={styles.chart}
+            />
+          </ScrollView>
         </View>
+      )}
 
-        <View style={styles.summaryCard}>
-          <View style={[styles.summaryIcon, { backgroundColor: "#dcfce7" }]}>
-            <Ionicons name="calendar-outline" size={20} color="#16a34a" />
+      {/* Bảng chi tiết - có thể click */}
+      <View style={styles.tableSection}>
+        <Text style={styles.tableTitle}>Chi tiết theo tháng (Nhấn để xem)</Text>
+        <View style={styles.table}>
+          {/* Header */}
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderText, { flex: 1 }]}>Tháng</Text>
+            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: "right" }]}>
+              Thu nhập
+            </Text>
+            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: "right" }]}>
+              Chi tiêu
+            </Text>
+            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: "right" }]}>
+              Còn lại
+            </Text>
           </View>
-          <Text style={styles.summaryValue}>
-            {formatSmartCurrency(monthlyAverage)}
-          </Text>
-          <Text style={styles.summaryLabel}>TB/tháng</Text>
-        </View>
 
-        <View style={styles.summaryCard}>
-          <View style={[styles.summaryIcon, { backgroundColor: "#fef3c7" }]}>
-            <Ionicons name="receipt-outline" size={20} color="#d97706" />
-          </View>
-          <Text style={styles.summaryValue}>{transactionCount}</Text>
-          <Text style={styles.summaryLabel}>Giao dịch</Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <View style={[styles.summaryIcon, { backgroundColor: "#f3e8ff" }]}>
-            <Ionicons name="trending-up-outline" size={20} color="#7c3aed" />
-          </View>
-          <Text style={styles.summaryValue}>
-            {formatSmartCurrency(avgTransactionValue)}
-          </Text>
-          <Text style={styles.summaryLabel}>TB/giao dịch</Text>
+          {/* Rows */}
+          {monthlyData.map((month) => {
+            const isCurrentMonth = month.month === getCurrentMonth();
+            return (
+              <TouchableOpacity
+                key={month.month}
+                style={[
+                  styles.tableRow,
+                  isCurrentMonth && styles.currentMonthRow,
+                ]}
+                onPress={() => viewMonthDetail(month)}
+              >
+                <Text
+                  style={[
+                    styles.tableCell,
+                    { flex: 1 },
+                    isCurrentMonth && styles.currentMonthText,
+                  ]}
+                >
+                  Tháng {month.month}
+                  {isCurrentMonth && " 🔵"}
+                </Text>
+                <Text
+                  style={[
+                    styles.tableCell,
+                    { flex: 2, textAlign: "right", color: "#22c55e", fontWeight: "600" },
+                  ]}
+                >
+                  {formatCurrency(month.totalIncome)}
+                </Text>
+                <Text
+                  style={[
+                    styles.tableCell,
+                    { flex: 2, textAlign: "right", color: "#ef4444", fontWeight: "600" },
+                  ]}
+                >
+                  {formatCurrency(month.totalExpense)}
+                </Text>
+                <Text
+                  style={[
+                    styles.tableCell,
+                    {
+                      flex: 2,
+                      textAlign: "right",
+                      color: month.balance >= 0 ? "#3b82f6" : "#f59e0b",
+                      fontWeight: "700",
+                    },
+                  ]}
+                >
+                  {formatCurrency(Math.abs(month.balance))}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
-      {/* Chart View */}
-      {viewMode === "chart" && (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>
-            {chartType === "amount"
-              ? "Số tiền chi tiêu"
-              : chartType === "count"
-              ? "Số giao dịch"
-              : "So sánh chi tiêu & số giao dịch"}
-          </Text>
+      {/* Modal chi tiết tháng */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedMonth && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    Chi tiết Tháng {selectedMonth.month}/{selectedYear}
+                  </Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)}>
+                    <Ionicons name="close" size={28} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
 
-          {hasData ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={true}
-              contentContainerStyle={styles.chartScrollContent}
-            >
-              <View style={styles.chartWrapper}>
-                {chartType === "count" ? (
-                  <BarChart
-                    data={chartData}
-                    width={chartWidth}
-                    height={280}
-                    chartConfig={chartConfig}
-                    style={styles.chart}
-                    fromZero
-                    showValuesOnTopOfBars={false}
-                    yAxisLabel=""
-                    yAxisSuffix=""
-                    verticalLabelRotation={0}
-                    segments={4}
-                    withInnerLines={true}
-                    withHorizontalLabels={true}
-                    withVerticalLabels={true}
-                    yLabelsOffset={10}
-                    xLabelsOffset={-5}
-                    barPercentage={0.7}
-                    showBarTops={false}
-                  />
-                ) : (
-                  <LineChart
-                    data={chartData}
-                    width={chartWidth}
-                    height={280}
-                    chartConfig={chartConfig}
-                    style={styles.chart}
-                    fromZero
-                    bezier
-                    yAxisLabel=""
-                    yAxisSuffix=""
-                    verticalLabelRotation={0}
-                    segments={4}
-                    withInnerLines={true}
-                    withHorizontalLabels={true}
-                    withVerticalLabels={true}
-                    withDots={true}
-                    yLabelsOffset={10}
-                    xLabelsOffset={-5}
-                  />
-                )}
+                <View style={styles.modalSummary}>
+                  <View style={styles.modalSummaryItem}>
+                    <Ionicons name="trending-up" size={20} color="#22c55e" />
+                    <Text style={styles.modalSummaryLabel}>Thu nhập</Text>
+                    <Text style={[styles.modalSummaryValue, { color: "#22c55e" }]}>
+                      {formatCurrency(selectedMonth.totalIncome)}
+                    </Text>
+                  </View>
 
-                {/* Legend */}
-                <View style={styles.legendContainer}>
-                  {chartType === "combined" ? (
-                    <>
-                      <View style={styles.legendItem}>
-                        <View
-                          style={[
-                            styles.legendColor,
-                            { backgroundColor: "#3b82f6" },
-                          ]}
+                  <View style={styles.modalSummaryItem}>
+                    <Ionicons name="trending-down" size={20} color="#ef4444" />
+                    <Text style={styles.modalSummaryLabel}>Chi tiêu</Text>
+                    <Text style={[styles.modalSummaryValue, { color: "#ef4444" }]}>
+                      {formatCurrency(selectedMonth.totalExpense)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.modalSummaryItem}>
+                    <Ionicons
+                      name={selectedMonth.balance >= 0 ? "wallet" : "alert-circle"}
+                      size={20}
+                      color={selectedMonth.balance >= 0 ? "#3b82f6" : "#f59e0b"}
+                    />
+                    <Text style={styles.modalSummaryLabel}>Còn lại</Text>
+                    <Text
+                      style={[
+                        styles.modalSummaryValue,
+                        {
+                          color: selectedMonth.balance >= 0 ? "#3b82f6" : "#f59e0b",
+                        },
+                      ]}
+                    >
+                      {formatCurrency(Math.abs(selectedMonth.balance))}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalTabs}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalTab,
+                      modalViewType === "expense" && styles.modalTabActive,
+                    ]}
+                    onPress={() => setModalViewType("expense")}
+                  >
+                    <Text
+                      style={[
+                        styles.modalTabText,
+                        modalViewType === "expense" && styles.modalTabTextActive,
+                      ]}
+                    >
+                      Chi tiêu ({selectedMonth.expenseCount})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalTab,
+                      modalViewType === "income" && styles.modalTabActive,
+                    ]}
+                    onPress={() => setModalViewType("income")}
+                  >
+                    <Text
+                      style={[
+                        styles.modalTabText,
+                        modalViewType === "income" && styles.modalTabTextActive,
+                      ]}
+                    >
+                      Thu nhập ({selectedMonth.incomeCount})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <FlatList
+                  data={
+                    modalViewType === "expense"
+                      ? selectedMonth.expenses
+                      : selectedMonth.incomes
+                  }
+                  keyExtractor={(item) => item.id.toString()}
+                  style={styles.modalList}
+                  renderItem={({ item }) => (
+                    <View style={styles.modalListItem}>
+                      <View style={styles.modalItemLeft}>
+                        <Ionicons
+                          name={modalViewType === "expense" ? "remove-circle" : "add-circle"}
+                          size={24}
+                          color={modalViewType === "expense" ? "#ef4444" : "#22c55e"}
                         />
-                        <Text style={styles.legendText}>Số tiền (₫)</Text>
+                        <View style={styles.modalItemInfo}>
+                          <Text style={styles.modalItemTitle}>{item.title}</Text>
+                          <Text style={styles.modalItemDate}>
+                            {new Date(item.date).toLocaleDateString("vi-VN")}
+                          </Text>
+                          {item.category && (
+                            <Text style={styles.modalItemCategory}>{item.category}</Text>
+                          )}
+                        </View>
                       </View>
-                      <View style={styles.legendItem}>
-                        <View
-                          style={[
-                            styles.legendColor,
-                            { backgroundColor: "#10b981" },
-                          ]}
-                        />
-                        <Text style={styles.legendText}>Số giao dịch</Text>
-                      </View>
-                    </>
-                  ) : (
-                    <View style={styles.legendItem}>
-                      <View
+                      <Text
                         style={[
-                          styles.legendColor,
+                          styles.modalItemAmount,
                           {
-                            backgroundColor:
-                              chartType === "amount" ? "#3b82f6" : "#10b981",
+                            color: modalViewType === "expense" ? "#ef4444" : "#22c55e",
                           },
                         ]}
-                      />
-                      <Text style={styles.legendText}>
-                        {chartType === "amount"
-                          ? "Số tiền (₫)"
-                          : "Số giao dịch"}
+                      >
+                        {formatCurrency(item.amount)}
                       </Text>
                     </View>
                   )}
-                </View>
-              </View>
-            </ScrollView>
-          ) : (
-            <View style={styles.noDataContainer}>
-              <Ionicons name="stats-chart-outline" size={60} color="#d1d5db" />
-              <Text style={styles.noDataText}>
-                Chưa có dữ liệu cho {selectedYear}
-              </Text>
-              <Text style={styles.noDataSubtext}>
-                Thêm chi tiêu để xem biểu đồ
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Table View */}
-      {viewMode === "table" && (
-        <View style={styles.tableContainer}>
-          <Text style={styles.tableTitle}>Bảng số liệu chi tiết</Text>
-
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.tableCellMonth]}>
-              Tháng
-            </Text>
-            <Text style={[styles.tableHeaderCell, styles.tableCellAmount]}>
-              Số tiền
-            </Text>
-            <Text style={[styles.tableHeaderCell, styles.tableCellCount]}>
-              Số GD
-            </Text>
-            <Text style={[styles.tableHeaderCell, styles.tableCellAvg]}>
-              TB/GD
-            </Text>
-          </View>
-
-          <ScrollView style={styles.tableBody}>
-            {monthlyData.map((month, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.tableRow,
-                  month.hasData && styles.tableRowHasData,
-                  index % 2 === 0 && styles.tableRowEven,
-                ]}
-              >
-                <Text style={[styles.tableCell, styles.tableCellMonth]}>
-                  {month.month}
-                </Text>
-                <Text
-                  style={[
-                    styles.tableCell,
-                    styles.tableCellAmount,
-                    !month.hasData && styles.tableCellEmpty,
-                  ]}
-                >
-                  {month.hasData ? formatSmartCurrency(month.amount) : "--"}
-                </Text>
-                <Text
-                  style={[
-                    styles.tableCell,
-                    styles.tableCellCount,
-                    !month.hasData && styles.tableCellEmpty,
-                  ]}
-                >
-                  {month.hasData ? month.count : "--"}
-                </Text>
-                <Text
-                  style={[
-                    styles.tableCell,
-                    styles.tableCellAvg,
-                    !month.hasData && styles.tableCellEmpty,
-                  ]}
-                >
-                  {month.hasData
-                    ? formatSmartCurrency(month.avgPerTransaction)
-                    : "--"}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-
-          {/* Summary Row */}
-          <View style={styles.tableSummary}>
-            <Text
-              style={[
-                styles.tableCell,
-                styles.tableCellMonth,
-                styles.tableSummaryText,
-              ]}
-            >
-              Tổng
-            </Text>
-            <Text
-              style={[
-                styles.tableCell,
-                styles.tableCellAmount,
-                styles.tableSummaryText,
-              ]}
-            >
-              {formatSmartCurrency(yearTotal)}
-            </Text>
-            <Text
-              style={[
-                styles.tableCell,
-                styles.tableCellCount,
-                styles.tableSummaryText,
-              ]}
-            >
-              {transactionCount}
-            </Text>
-            <Text
-              style={[
-                styles.tableCell,
-                styles.tableCellAvg,
-                styles.tableSummaryText,
-              ]}
-            >
-              {formatSmartCurrency(avgTransactionValue)}
-            </Text>
+                  ListEmptyComponent={
+                    <Text style={styles.emptyText}>
+                      Không có {modalViewType === "expense" ? "chi tiêu" : "thu nhập"} nào
+                    </Text>
+                  }
+                />
+              </>
+            )}
           </View>
         </View>
-      )}
-
-      {/* Insights */}
-      <View style={styles.insightsContainer}>
-        <Text style={styles.insightsTitle}>📈 Phân tích nổi bật</Text>
-
-        <View style={styles.insightItem}>
-          <Ionicons name="trophy-outline" size={20} color="#f59e0b" />
-          <View style={styles.insightContent}>
-            <Text style={styles.insightLabel}>Tháng chi nhiều nhất</Text>
-            <Text style={styles.insightValue}>
-              {maxMonth
-                ? `${maxMonth.fullMonth}: ${formatSmartCurrency(
-                    maxMonth.amount
-                  )}`
-                : "--"}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.insightItem}>
-          <Ionicons name="leaf-outline" size={20} color="#10b981" />
-          <View style={styles.insightContent}>
-            <Text style={styles.insightLabel}>Tháng tiết kiệm nhất</Text>
-            <Text style={styles.insightValue}>
-              {minMonth
-                ? `${minMonth.fullMonth}: ${formatSmartCurrency(
-                    minMonth.amount
-                  )}`
-                : "--"}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.insightItem}>
-          <Ionicons name="calculator-outline" size={20} color="#8b5cf6" />
-          <View style={styles.insightContent}>
-            <Text style={styles.insightLabel}>Trung bình tháng</Text>
-            <Text style={styles.insightValue}>
-              {monthlyAverage > 0
-                ? `${formatSmartCurrency(monthlyAverage)} (${
-                    monthlyData.filter((m) => m.hasData).length
-                  }/12 tháng có chi)`
-                : "--"}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Tips */}
-      <View style={styles.tipsContainer}>
-        <Text style={styles.tipsTitle}>💡 Mẹo quản lý chi tiêu</Text>
-
-        <View style={styles.tipItem}>
-          <View style={styles.tipBullet}>
-            <Text style={styles.tipBulletText}>•</Text>
-          </View>
-          <Text style={styles.tipText}>
-            Giữ mức chi tháng dưới {formatSmartCurrency(monthlyAverage * 1.1)}{" "}
-            (tăng 10% so với TB)
-          </Text>
-        </View>
-
-        <View style={styles.tipItem}>
-          <View style={styles.tipBullet}>
-            <Text style={styles.tipBulletText}>•</Text>
-          </View>
-          <Text style={styles.tipText}>
-            Hạn chế giao dịch nhỏ lẻ dưới{" "}
-            {formatSmartCurrency(avgTransactionValue * 0.3)}
-          </Text>
-        </View>
-
-        <View style={styles.tipItem}>
-          <View style={styles.tipBullet}>
-            <Text style={styles.tipBulletText}>•</Text>
-          </View>
-          <Text style={styles.tipText}>
-            Tháng sau, cố gắng chi ít hơn{" "}
-            {maxMonth ? formatSmartCurrency(maxMonth.amount) : "tháng cao nhất"}
-          </Text>
-        </View>
-      </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -836,360 +576,304 @@ const MonthlyStatsTab = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f3f4f6",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    backgroundColor: "#f3f4f6",
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 16,
     color: "#6b7280",
   },
   header: {
-    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#fff",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  headerLeft: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#111827",
   },
   headerSubtitle: {
     fontSize: 14,
     color: "#6b7280",
+    marginTop: 4,
   },
-  selectorRow: {
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#eff6ff",
+  },
+  yearSelectorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#fff",
-    paddingHorizontal: 20,
     paddingVertical: 12,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  yearScroll: {
-    maxHeight: 40,
+  yearNavButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#eff6ff",
+  },
+  yearSelector: {
+    flex: 1,
+    marginHorizontal: 8,
   },
   yearButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 8,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 20,
     marginRight: 8,
+    borderRadius: 20,
+    backgroundColor: "#f3f4f6",
   },
   yearButtonActive: {
     backgroundColor: "#3b82f6",
   },
   yearButtonText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#6b7280",
   },
   yearButtonTextActive: {
     color: "#fff",
-    fontWeight: "600",
-  },
-  viewModeSelector: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    gap: 8,
-  },
-  viewModeButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    gap: 8,
-  },
-  viewModeButtonActive: {
-    backgroundColor: "#3b82f6",
-  },
-  viewModeText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6b7280",
-  },
-  viewModeTextActive: {
-    color: "#fff",
-  },
-  chartTypeSelector: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    gap: 6,
-  },
-  chartTypeButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 10,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 8,
-    gap: 6,
-  },
-  chartTypeButtonActive: {
-    backgroundColor: "#3b82f6",
-  },
-  chartTypeText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#6b7280",
-  },
-  chartTypeTextActive: {
-    color: "#fff",
   },
   summaryContainer: {
-    flexDirection: "row",
-    padding: 16,
-    gap: 8,
-    backgroundColor: "#fff",
-    flexWrap: "wrap",
+    padding: 20,
+    gap: 12,
   },
   summaryCard: {
-    flex: 1,
-    minWidth: (screenWidth - 48) / 2,
-    backgroundColor: "#f8fafc",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    marginBottom: 8,
+    borderLeftWidth: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  summaryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1f2937",
-    textAlign: "center",
-    marginBottom: 4,
+  summaryContent: {
+    marginLeft: 12,
+    flex: 1,
   },
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: "#6b7280",
-    textAlign: "center",
+    marginBottom: 4,
   },
-  chartContainer: {
+  summaryValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  chartSection: {
     backgroundColor: "#fff",
-    marginTop: 1,
-    padding: 20,
-    minHeight: 350,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   chartTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 16,
-  },
-  chartScrollContent: {
-    paddingRight: 20,
-  },
-  chartWrapper: {
-    alignItems: "center",
+    color: "#111827",
+    marginBottom: 12,
   },
   chart: {
     borderRadius: 12,
-    paddingRight: 20,
-    marginTop: 10,
   },
-  legendContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 16,
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-  },
-  legendText: {
-    fontSize: 12,
-    color: "#6b7280",
-  },
-  noDataContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-    minHeight: 200,
-  },
-  noDataText: {
-    fontSize: 16,
-    color: "#6b7280",
-    textAlign: "center",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  noDataSubtext: {
-    fontSize: 14,
-    color: "#9ca3af",
-    textAlign: "center",
-  },
-  tableContainer: {
+  tableSection: {
     backgroundColor: "#fff",
-    marginTop: 1,
-    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tableTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 16,
+    color: "#111827",
+    marginBottom: 12,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    overflow: "hidden",
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#f9fafb",
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  tableHeaderCell: {
+  tableHeaderText: {
+    fontSize: 13,
     fontWeight: "600",
     color: "#374151",
-    fontSize: 13,
-  },
-  tableCellMonth: {
-    flex: 1,
-  },
-  tableCellAmount: {
-    flex: 1.5,
-    textAlign: "right",
-  },
-  tableCellCount: {
-    flex: 1,
-    textAlign: "center",
-  },
-  tableCellAvg: {
-    flex: 1.5,
-    textAlign: "right",
-  },
-  tableBody: {
-    maxHeight: 400,
   },
   tableRow: {
     flexDirection: "row",
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
-  tableRowEven: {
-    backgroundColor: "#fafafa",
-  },
-  tableRowHasData: {
-    backgroundColor: "#fff",
+  currentMonthRow: {
+    backgroundColor: "#eff6ff",
   },
   tableCell: {
     fontSize: 13,
-    color: "#4b5563",
+    color: "#6b7280",
   },
-  tableCellEmpty: {
-    color: "#9ca3af",
+  currentMonthText: {
+    fontWeight: "700",
+    color: "#3b82f6",
   },
-  tableSummary: {
-    flexDirection: "row",
-    backgroundColor: "#e0f2fe",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    marginTop: 1,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
-  tableSummaryText: {
-    fontWeight: "600",
-    color: "#0369a1",
-  },
-  insightsContainer: {
+  modalContent: {
     backgroundColor: "#fff",
-    marginTop: 1,
-    padding: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "85%",
+    paddingBottom: 20,
   },
-  insightsTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 16,
-  },
-  insightItem: {
+  modalHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#111827",
+  },
+  modalSummary: {
+    flexDirection: "row",
+    padding: 16,
     gap: 12,
   },
-  insightContent: {
+  modalSummaryItem: {
     flex: 1,
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    gap: 4,
   },
-  insightLabel: {
-    fontSize: 13,
+  modalSummaryLabel: {
+    fontSize: 11,
     color: "#6b7280",
-    marginBottom: 2,
+    marginTop: 4,
   },
-  insightValue: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1f2937",
+  modalSummaryValue: {
+    fontSize: 15,
+    fontWeight: "bold",
+    marginTop: 2,
   },
-  tipsContainer: {
-    backgroundColor: "#fff",
-    marginTop: 1,
-    padding: 20,
-    marginBottom: 20,
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 16,
-  },
-  tipItem: {
+  modalTabs: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 12,
+    paddingHorizontal: 16,
     gap: 8,
+    marginBottom: 12,
   },
-  tipBullet: {
-    width: 20,
+  modalTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#f3f4f6",
     alignItems: "center",
   },
-  tipBulletText: {
-    fontSize: 16,
-    color: "#f59e0b",
+  modalTabActive: {
+    backgroundColor: "#3b82f6",
   },
-  tipText: {
-    flex: 1,
+  modalTabText: {
     fontSize: 14,
-    color: "#4b5563",
-    lineHeight: 20,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  modalTabTextActive: {
+    color: "#fff",
+  },
+  modalList: {
+    paddingHorizontal: 16,
+  },
+  modalListItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  modalItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  modalItemInfo: {
+    flex: 1,
+  },
+  modalItemTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  modalItemDate: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  modalItemCategory: {
+    fontSize: 11,
+    color: "#9ca3af",
+    marginTop: 2,
+  },
+  modalItemAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  emptyText: {
+    textAlign: "center",
+    padding: 40,
+    fontSize: 14,
+    color: "#9ca3af",
   },
 });
 

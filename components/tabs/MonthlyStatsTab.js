@@ -13,6 +13,7 @@ import {
 import { useSelector } from "react-redux";
 import { BarChart, LineChart } from "react-native-chart-kit";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { getCategoryColor, getCategoryIcon } from "../../utils/CategoryIcons";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -25,6 +26,8 @@ const MonthlyStatsTab = () => {
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalViewType, setModalViewType] = useState("expense"); // 'expense', 'income'
+  const [incomeTooltip, setIncomeTooltip] = useState({ visible: false, x: 0, y: 0, value: 0, label: "" });
+  const [expenseTooltip, setExpenseTooltip] = useState({ visible: false, x: 0, y: 0, value: 0, label: "" });
 
   useEffect(() => {
     calculateMonthlyStats();
@@ -106,18 +109,10 @@ const MonthlyStatsTab = () => {
     return yearArray;
   };
 
-  // Format tiền tệ
+  // Format tiền tệ: hiển thị đầy đủ theo VND, không viết tắt
   const formatCurrency = (amount) => {
-    if (amount >= 1000000000) {
-      return `${(amount / 1000000000).toFixed(1)}B ₫`;
-    }
-    if (amount >= 1000000) {
-      return `${(amount / 1000000).toFixed(1)}M ₫`;
-    }
-    if (amount >= 1000) {
-      return `${(amount / 1000).toFixed(0)}K ₫`;
-    }
-    return `${amount} ₫`;
+    const value = Number(amount) || 0;
+    return `${value.toLocaleString("vi-VN")} VND`;
   };
 
   // Tổng chi tiêu trong năm
@@ -176,9 +171,12 @@ const MonthlyStatsTab = () => {
     <ScrollView style={styles.container}>
       {/* Header với điều hướng năm */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View>
-            <Text style={styles.headerTitle}>Thống kê tháng</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.headerIconBg}>
+            <Ionicons name="calendar" size={24} color="#3b82f6" />
+          </View>
+          <View style={styles.headerTextGroup}>
+            <Text style={styles.headerTitle}>Thống kê năm</Text>
             <Text style={styles.headerSubtitle}>
               {yearTotalExpense > 0
                 ? `Chi ${formatCurrency(yearTotalExpense)} trong năm`
@@ -190,7 +188,7 @@ const MonthlyStatsTab = () => {
           style={styles.refreshButton}
           onPress={calculateMonthlyStats}
         >
-          <Ionicons name="refresh" size={22} color="#3b82f6" />
+          <Ionicons name="refresh" size={20} color="#3b82f6" />
         </TouchableOpacity>
       </View>
 
@@ -239,8 +237,10 @@ const MonthlyStatsTab = () => {
 
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, { borderLeftColor: "#22c55e" }]}>
-          <Ionicons name="trending-up" size={24} color="#22c55e" />
+        <View style={[styles.summaryCard, styles.summaryCardIncome]}>
+          <View style={styles.summaryIconBg}>
+            <Ionicons name="trending-up" size={22} color="#22c55e" />
+          </View>
           <View style={styles.summaryContent}>
             <Text style={styles.summaryLabel}>Thu nhập</Text>
             <Text style={[styles.summaryValue, { color: "#22c55e" }]}>
@@ -249,8 +249,10 @@ const MonthlyStatsTab = () => {
           </View>
         </View>
 
-        <View style={[styles.summaryCard, { borderLeftColor: "#ef4444" }]}>
-          <Ionicons name="trending-down" size={24} color="#ef4444" />
+        <View style={[styles.summaryCard, styles.summaryCardExpense]}>
+          <View style={styles.summaryIconBg}>
+            <Ionicons name="trending-down" size={22} color="#ef4444" />
+          </View>
           <View style={styles.summaryContent}>
             <Text style={styles.summaryLabel}>Chi tiêu</Text>
             <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
@@ -262,14 +264,16 @@ const MonthlyStatsTab = () => {
         <View
           style={[
             styles.summaryCard,
-            { borderLeftColor: yearBalance >= 0 ? "#3b82f6" : "#f59e0b" },
+            yearBalance >= 0 ? styles.summaryCardBalance : styles.summaryCardWarning,
           ]}
         >
-          <Ionicons
-            name={yearBalance >= 0 ? "wallet" : "alert-circle"}
-            size={24}
-            color={yearBalance >= 0 ? "#3b82f6" : "#f59e0b"}
-          />
+          <View style={styles.summaryIconBg}>
+            <Ionicons
+              name={yearBalance >= 0 ? "wallet" : "alert-circle"}
+              size={22}
+              color={yearBalance >= 0 ? "#3b82f6" : "#f59e0b"}
+            />
+          </View>
           <View style={styles.summaryContent}>
             <Text style={styles.summaryLabel}>Còn lại</Text>
             <Text
@@ -287,31 +291,59 @@ const MonthlyStatsTab = () => {
       {/* Biểu đồ so sánh */}
       {monthlyData.length > 0 && (
         <View style={styles.chartSection}>
-          <Text style={styles.chartTitle}>So sánh thu nhập & chi tiêu</Text>
+          <Text style={styles.chartTitle}>Thu nhập qua từng tháng</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <BarChart
-              data={comparisonChartData}
-              width={Math.max(screenWidth - 40, monthlyData.length * 60)}
-              height={220}
-              chartConfig={{
-                backgroundColor: "#fff",
-                backgroundGradientFrom: "#fff",
-                backgroundGradientTo: "#fff",
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForBackgroundLines: {
-                  strokeDasharray: "",
-                  stroke: "#e5e7eb",
-                },
-              }}
-              style={styles.chart}
-              fromZero
-              showValuesOnTopOfBars={false}
-            />
+            <View style={styles.chartWrapper}>
+              <BarChart
+                data={incomeChartData}
+                width={Math.max(screenWidth - 40, monthlyData.length * 60)}
+                height={220}
+                fromZero
+                barRadius={8}
+                showValuesOnTopOfBars={false}
+                segments={4}
+                chartConfig={{
+                  backgroundColor: "#fff",
+                  backgroundGradientFrom: "#fff",
+                  backgroundGradientTo: "#fff",
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(34, 197, 94, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                  fillShadowGradientFrom: "#22c55e",
+                  fillShadowGradientFromOpacity: 0.7,
+                  fillShadowGradientTo: "#22c55e",
+                  fillShadowGradientToOpacity: 0.2,
+                  propsForBackgroundLines: {
+                    strokeDasharray: "4 6",
+                    stroke: "#e5e7eb",
+                  },
+                }}
+                style={styles.chart}
+                onDataPointClick={({ index, value, x, y }) => {
+                  const label = monthlyData[index]?.monthName || "";
+                  setIncomeTooltip((prev) => {
+                    if (prev.visible && prev.x === x && prev.y === y) {
+                      return { ...prev, visible: false };
+                    }
+                    return { visible: true, x, y, value, label };
+                  });
+                }}
+              />
+              {incomeTooltip.visible && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.tooltip,
+                    { left: incomeTooltip.x - 36, top: incomeTooltip.y - 48 },
+                  ]}
+                >
+                  <Text style={styles.tooltipLabel}>{incomeTooltip.label}</Text>
+                  <Text style={[styles.tooltipValue, { color: "#22c55e" }]}>
+                    {formatCurrency(incomeTooltip.value)}
+                  </Text>
+                </View>
+              )}
+            </View>
           </ScrollView>
         </View>
       )}
@@ -319,42 +351,78 @@ const MonthlyStatsTab = () => {
       {/* Biểu đồ chi tiêu */}
       {monthlyData.length > 0 && (
         <View style={styles.chartSection}>
-          <Text style={styles.chartTitle}>Xu hướng chi tiêu</Text>
+          <Text style={styles.chartTitle}>Chi tiêu qua từng tháng</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <LineChart
-              data={expenseChartData}
-              width={Math.max(screenWidth - 40, monthlyData.length * 60)}
-              height={220}
-              chartConfig={{
-                backgroundColor: "#fff",
-                backgroundGradientFrom: "#fff",
-                backgroundGradientTo: "#fff",
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-                style: {
-                  borderRadius: 16,
-                },
-                propsForDots: {
-                  r: "4",
-                  strokeWidth: "2",
-                  stroke: "#ef4444",
-                },
-                propsForBackgroundLines: {
-                  strokeDasharray: "",
-                  stroke: "#e5e7eb",
-                },
-              }}
-              bezier
-              style={styles.chart}
-            />
+            <View style={styles.chartWrapper}>
+              <LineChart
+                data={expenseChartData}
+                width={Math.max(screenWidth - 40, monthlyData.length * 60)}
+                height={220}
+                bezier
+                withShadow
+                segments={4}
+                yLabelsOffset={6}
+                chartConfig={{
+                  backgroundColor: "#fff",
+                  backgroundGradientFrom: "#fff",
+                  backgroundGradientTo: "#fff",
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                  fillShadowGradientFrom: "#ef4444",
+                  fillShadowGradientFromOpacity: 0.3,
+                  fillShadowGradientTo: "#ef4444",
+                  fillShadowGradientToOpacity: 0.05,
+                  propsForDots: {
+                    r: "4",
+                    strokeWidth: "2",
+                    stroke: "#ef4444",
+                  },
+                  propsForBackgroundLines: {
+                    strokeDasharray: "4 6",
+                    stroke: "#e5e7eb",
+                  },
+                }}
+                style={styles.chart}
+                onDataPointClick={({ index, value, x, y }) => {
+                  const label = monthlyData[index]?.monthName || "";
+                  setExpenseTooltip((prev) => {
+                    if (prev.visible && prev.x === x && prev.y === y) {
+                      return { ...prev, visible: false };
+                    }
+                    return { visible: true, x, y, value, label };
+                  });
+                }}
+                formatYLabel={(y) => {
+                  const num = Number(y);
+                  return isNaN(num) ? y : num.toLocaleString("vi-VN");
+                }}
+              />
+              {expenseTooltip.visible && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.tooltip,
+                    { left: expenseTooltip.x - 36, top: expenseTooltip.y - 48 },
+                  ]}
+                >
+                  <Text style={styles.tooltipLabel}>{expenseTooltip.label}</Text>
+                  <Text style={[styles.tooltipValue, { color: "#ef4444" }]}>
+                    {formatCurrency(expenseTooltip.value)}
+                  </Text>
+                </View>
+              )}
+            </View>
           </ScrollView>
         </View>
       )}
 
       {/* Bảng chi tiết - có thể click */}
       <View style={styles.tableSection}>
-        <Text style={styles.tableTitle}>Chi tiết theo tháng (Nhấn để xem)</Text>
+        <View style={styles.tableTitleRow}>
+          <Ionicons name="layers" size={20} color="#3b82f6" />
+          <Text style={styles.tableTitle}>Chi tiết theo tháng</Text>
+        </View>
         <View style={styles.table}>
           {/* Header */}
           <View style={styles.tableHeader}>
@@ -439,37 +507,51 @@ const MonthlyStatsTab = () => {
             {selectedMonth && (
               <>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>
-                    Chi tiết Tháng {selectedMonth.month}/{selectedYear}
-                  </Text>
-                  <TouchableOpacity onPress={() => setModalVisible(false)}>
-                    <Ionicons name="close" size={28} color="#6b7280" />
+                  <View style={styles.modalHeaderLeft}>
+                    <View style={styles.modalHeaderIconBg}>
+                      <Ionicons name="calendar" size={20} color="#3b82f6" />
+                    </View>
+                    <Text style={styles.modalTitle}>
+                      Tháng {selectedMonth.month}/{selectedYear}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.modalCloseButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={24} color="#6b7280" />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.modalSummary}>
-                  <View style={styles.modalSummaryItem}>
-                    <Ionicons name="trending-up" size={20} color="#22c55e" />
+                  <View style={[styles.modalSummaryItem, styles.modalSummaryItemIncome]}>
+                    <View style={styles.modalSummaryIconBg}>
+                      <Ionicons name="trending-up" size={18} color="#22c55e" />
+                    </View>
                     <Text style={styles.modalSummaryLabel}>Thu nhập</Text>
                     <Text style={[styles.modalSummaryValue, { color: "#22c55e" }]}>
                       {formatCurrency(selectedMonth.totalIncome)}
                     </Text>
                   </View>
 
-                  <View style={styles.modalSummaryItem}>
-                    <Ionicons name="trending-down" size={20} color="#ef4444" />
+                  <View style={[styles.modalSummaryItem, styles.modalSummaryItemExpense]}>
+                    <View style={styles.modalSummaryIconBg}>
+                      <Ionicons name="trending-down" size={18} color="#ef4444" />
+                    </View>
                     <Text style={styles.modalSummaryLabel}>Chi tiêu</Text>
                     <Text style={[styles.modalSummaryValue, { color: "#ef4444" }]}>
                       {formatCurrency(selectedMonth.totalExpense)}
                     </Text>
                   </View>
 
-                  <View style={styles.modalSummaryItem}>
-                    <Ionicons
-                      name={selectedMonth.balance >= 0 ? "wallet" : "alert-circle"}
-                      size={20}
-                      color={selectedMonth.balance >= 0 ? "#3b82f6" : "#f59e0b"}
-                    />
+                  <View style={[styles.modalSummaryItem, selectedMonth.balance >= 0 ? styles.modalSummaryItemBalance : styles.modalSummaryItemWarning]}>
+                    <View style={styles.modalSummaryIconBg}>
+                      <Ionicons
+                        name={selectedMonth.balance >= 0 ? "wallet" : "alert-circle"}
+                        size={18}
+                        color={selectedMonth.balance >= 0 ? "#3b82f6" : "#f59e0b"}
+                      />
+                    </View>
                     <Text style={styles.modalSummaryLabel}>Còn lại</Text>
                     <Text
                       style={[
@@ -531,11 +613,21 @@ const MonthlyStatsTab = () => {
                   renderItem={({ item }) => (
                     <View style={styles.modalListItem}>
                       <View style={styles.modalItemLeft}>
-                        <Ionicons
-                          name={modalViewType === "expense" ? "remove-circle" : "add-circle"}
-                          size={24}
-                          color={modalViewType === "expense" ? "#ef4444" : "#22c55e"}
-                        />
+                        {item.category ? (
+                          <View style={[styles.categoryIconBox, { backgroundColor: getCategoryColor(item.category) + "20" }]}>
+                            <Ionicons
+                              name={getCategoryIcon(item.category)}
+                              size={20}
+                              color={getCategoryColor(item.category)}
+                            />
+                          </View>
+                        ) : (
+                          <Ionicons
+                            name={modalViewType === "expense" ? "remove-circle" : "add-circle"}
+                            size={24}
+                            color={modalViewType === "expense" ? "#ef4444" : "#22c55e"}
+                          />
+                        )}
                         <View style={styles.modalItemInfo}>
                           <Text style={styles.modalItemTitle}>{item.title}</Text>
                           <Text style={styles.modalItemDate}>
@@ -598,23 +690,43 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  headerLeft: {
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  headerIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#e0f2fe",
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  headerTextGroup: {
     flex: 1,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#111827",
   },
   headerSubtitle: {
     fontSize: 14,
     color: "#6b7280",
     marginTop: 4,
+    fontWeight: "500",
   },
   refreshButton: {
     padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#eff6ff",
+    borderRadius: 10,
+    backgroundColor: "#e0f2fe",
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   yearSelectorContainer: {
     flexDirection: "row",
@@ -661,26 +773,49 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
     padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
+    borderRadius: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    gap: 12,
+  },
+  summaryCardIncome: {
+    borderColor: "#dcfce7",
+  },
+  summaryCardExpense: {
+    borderColor: "#fee2e2",
+  },
+  summaryCardBalance: {
+    borderColor: "#e0f2fe",
+  },
+  summaryCardWarning: {
+    borderColor: "#fef3c7",
+  },
+  summaryIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+    backgroundColor: "#f9fafb",
   },
   summaryContent: {
-    marginLeft: 12,
     flex: 1,
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6b7280",
     marginBottom: 4,
+    fontWeight: "500",
   },
   summaryValue: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "700",
   },
   chartSection: {
     backgroundColor: "#fff",
@@ -703,23 +838,60 @@ const styles = StyleSheet.create({
   chart: {
     borderRadius: 12,
   },
+  chartWrapper: {
+    position: "relative",
+  },
+  tooltip: {
+    position: "absolute",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    alignItems: "center",
+    minWidth: 90,
+  },
+  tooltipLabel: {
+    fontSize: 11,
+    color: "#6b7280",
+    marginBottom: 2,
+    fontWeight: "600",
+  },
+  tooltipValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+  },
   tableSection: {
     backgroundColor: "#fff",
     marginHorizontal: 20,
     marginBottom: 20,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  tableTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
   },
   tableTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
-    marginBottom: 12,
   },
   table: {
     borderWidth: 1,
@@ -765,8 +937,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: "85%",
     paddingBottom: 20,
   },
@@ -778,10 +950,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  modalHeaderIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#e0f2fe",
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  modalCloseButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#f3f4f6",
+  },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#111827",
+    flex: 1,
   },
   modalSummary: {
     flexDirection: "row",
@@ -790,20 +983,44 @@ const styles = StyleSheet.create({
   },
   modalSummaryItem: {
     flex: 1,
-    backgroundColor: "#f9fafb",
-    padding: 12,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    borderWidth: 1,
+  },
+  modalSummaryItemIncome: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#dcfce7",
+  },
+  modalSummaryItemExpense: {
+    backgroundColor: "#fef2f2",
+    borderColor: "#fee2e2",
+  },
+  modalSummaryItemBalance: {
+    backgroundColor: "#f0f9ff",
+    borderColor: "#e0f2fe",
+  },
+  modalSummaryItemWarning: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fef3c7",
+  },
+  modalSummaryIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#f9fafb",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalSummaryLabel: {
     fontSize: 11,
     color: "#6b7280",
-    marginTop: 4,
+    fontWeight: "500",
   },
   modalSummaryValue: {
     fontSize: 15,
-    fontWeight: "bold",
+    fontWeight: "700",
     marginTop: 2,
   },
   modalTabs: {
@@ -814,13 +1031,16 @@ const styles = StyleSheet.create({
   },
   modalTab: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     backgroundColor: "#f3f4f6",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   modalTabActive: {
     backgroundColor: "#3b82f6",
+    borderColor: "#3b82f6",
   },
   modalTabText: {
     fontSize: 14,
@@ -846,6 +1066,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     gap: 12,
+  },
+  categoryIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
   },
   modalItemInfo: {
     flex: 1,

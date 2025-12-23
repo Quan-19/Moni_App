@@ -153,41 +153,55 @@ const DailyTracker = () => {
 
   // Chuẩn bị dữ liệu cho biểu đồ
   const prepareChartData = () => {
+    // Nhãn: số ngày trong tháng cho 7 ngày gần nhất
     const labels = last7Days.map(day => {
       const date = new Date(day.date);
       return date.getDate().toString();
     });
-    
-    const expenseData = last7Days.map(day => day.totalExpense);
-    const incomeData = last7Days.map(day => day.totalIncome);
-    
+
+    // Dữ liệu chi tiêu theo ngày và trung bình trượt 7 ngày
+    const dailyExpenses = last7Days.map(day => day.totalExpense || 0);
+    const movingAvg7 = dailyExpenses.map((_, idx) => {
+      const start = Math.max(0, idx - 6);
+      const window = dailyExpenses.slice(start, idx + 1);
+      const sum = window.reduce((s, v) => s + v, 0);
+      return sum / window.length;
+    });
+
     // Tìm giá trị lớn nhất để scale
-    const allValues = [...expenseData, ...incomeData];
-    const maxValue = Math.max(...allValues.filter(v => !isNaN(v)));
-    
+    const maxValue = Math.max(...dailyExpenses, ...movingAvg7, 0);
+
     // Scale xuống để hiển thị đẹp
     let divisor = 1000;
     if (maxValue >= 10000000) {
-      divisor = 1000000;
+      divisor = 1000000; // triệu
     } else if (maxValue >= 100000) {
-      divisor = 10000;
+      divisor = 10000; // chục nghìn
+    } else {
+      divisor = 1000; // nghìn
     }
-    
+
+    // Chiều rộng động để đồng nhất với biểu đồ tháng (36px/ngày)
+    const days = last7Days.length;
+    const baseWidth = Dimensions.get('window').width - 32;
+    const chartWidth = Math.max(baseWidth, days * 36);
+
     return {
       labels,
       datasets: [
         {
-          data: expenseData.map(v => v / divisor),
+          data: dailyExpenses.map(v => v / divisor),
           color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-          strokeWidth: 3,
+          strokeWidth: 2,
         },
         {
-          data: incomeData.map(v => v / divisor),
-          color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
-          strokeWidth: 3,
+          data: movingAvg7.map(v => v / divisor),
+          color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+          strokeWidth: 2,
         },
       ],
       divisor,
+      width: chartWidth,
     };
   };
 
@@ -300,11 +314,63 @@ const DailyTracker = () => {
 
   const monthStats = getMonthStats();
 
+  // Chuẩn bị dữ liệu biểu đồ cho chế độ tháng (đọc dễ hơn)
+  const prepareMonthChartData = () => {
+    const days = monthDaysData.length;
+    const dailyExpenses = monthDaysData.map(d => d.totalExpense || 0);
+
+    // Tính trung bình trượt 7 ngày
+    const movingAvg7 = dailyExpenses.map((_, idx) => {
+      const start = Math.max(0, idx - 6);
+      const window = dailyExpenses.slice(start, idx + 1);
+      const sum = window.reduce((s, v) => s + v, 0);
+      return sum / window.length;
+    });
+
+    // Xác định scale theo giá trị lớn nhất trong tháng
+    const maxMonthValue = Math.max(...dailyExpenses, ...movingAvg7, 0);
+    let divisor = 1000;
+    if (maxMonthValue >= 10000000) {
+      divisor = 1000000; // triệu
+    } else if (maxMonthValue >= 100000) {
+      divisor = 10000; // chục nghìn
+    } else {
+      divisor = 1000; // nghìn
+    }
+
+    // Hiển thị rõ số ngày trên trục X
+    const labels = monthDaysData.map(d => String(d.day));
+
+    // Chiều rộng động để tránh chèn nhau (36px/ ngày)
+    const baseWidth = Dimensions.get('window').width - 32;
+    const chartWidth = Math.max(baseWidth, days * 36);
+
+    return {
+      labels,
+      datasets: [
+        {
+          data: dailyExpenses.map(v => v / divisor),
+          color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+          strokeWidth: 2,
+        },
+        {
+          data: movingAvg7.map(v => v / divisor),
+          color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+          strokeWidth: 2,
+        },
+      ],
+      divisor,
+      width: chartWidth,
+    };
+  };
+
+  const monthChartData = prepareMonthChartData();
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>📅 Theo dõi hàng ngày</Text>
+        <Text style={styles.title}>Theo dõi hàng ngày</Text>
         <Text style={styles.subtitle}>
           {viewMode === 'week' ? '7 ngày gần nhất' : 'Tháng này'}
         </Text>
@@ -335,70 +401,85 @@ const DailyTracker = () => {
         <Text style={styles.chartTitle}>
           {viewMode === 'week' ? '7 ngày qua' : 'Tháng này'}
         </Text>
-        <LineChart
-          data={viewMode === 'week' ? chartData : {
-            labels: monthDaysData.map(d => d.day.toString()),
-            datasets: [{
-              data: monthDaysData.map(d => d.totalExpense / 1000),
-              color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-              strokeWidth: 2,
-            }],
-            divisor: 1000,
-          }}
-          width={Dimensions.get('window').width - 32}
-          height={220}
-          chartConfig={{
-            backgroundColor: '#ffffff',
-            backgroundGradientFrom: '#ffffff',
-            backgroundGradientTo: '#ffffff',
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-            style: {
-              borderRadius: 16,
-            },
-            propsForDots: {
-              r: '4',
-              strokeWidth: '2',
-            },
-            propsForLabels: {
-              fontSize: 10,
-            },
-            propsForBackgroundLines: {
-              strokeWidth: 1,
-              stroke: '#e5e7eb',
-            },
-          }}
-          bezier
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-          }}
-          formatYLabel={(value) => {
-            const divisor = viewMode === 'week' ? chartData.divisor : 1000;
-            return formatYLabel(value, divisor);
-          }}
-          segments={4}
-          withInnerLines={true}
-        />
-        
+        {viewMode === 'week' ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <LineChart
+              data={chartData}
+              width={chartData.width}
+              height={220}
+              chartConfig={{
+                backgroundColor: '#ffffff',
+                backgroundGradientFrom: '#ffffff',
+                backgroundGradientTo: '#ffffff',
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: { borderRadius: 16 },
+                // Không hiện chấm để đồng nhất với tháng
+                propsForDots: { r: '0', strokeWidth: '0' },
+                propsForLabels: { fontSize: 10 },
+                propsForBackgroundLines: { strokeWidth: 1, stroke: '#e5e7eb' },
+              }}
+              bezier
+              style={{ marginVertical: 8, borderRadius: 16 }}
+              formatYLabel={(value) => formatYLabel(value, chartData.divisor)}
+              segments={5}
+              withInnerLines={true}
+              withDots={false}
+            />
+          </ScrollView>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <LineChart
+              data={monthChartData}
+              width={monthChartData.width}
+              height={220}
+              chartConfig={{
+                backgroundColor: '#ffffff',
+                backgroundGradientFrom: '#ffffff',
+                backgroundGradientTo: '#ffffff',
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: { borderRadius: 16 },
+                // Không hiện chấm để đỡ rối mắt
+                propsForDots: { r: '0', strokeWidth: '0' },
+                propsForLabels: { fontSize: 10 },
+                propsForBackgroundLines: { strokeWidth: 1, stroke: '#e5e7eb' },
+              }}
+              style={{ marginVertical: 8, borderRadius: 16 }}
+              formatYLabel={(value) => formatYLabel(value, monthChartData.divisor)}
+              segments={5}
+              withInnerLines={true}
+              withDots={false}
+              verticalLabelRotation={0}
+            />
+          </ScrollView>
+        )}
+
         <View style={styles.chartLegend}>
           {viewMode === 'week' ? (
             <>
               <View style={styles.legendItem}>
                 <View style={[styles.legendColor, { backgroundColor: '#ef4444' }]} />
-                <Text style={styles.legendText}>Chi tiêu</Text>
+                <Text style={styles.legendText}>Chi tiêu hàng ngày</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#10b981' }]} />
-                <Text style={styles.legendText}>Thu nhập</Text>
+                <View style={[styles.legendColor, { backgroundColor: '#3b82f6' }]} />
+                <Text style={styles.legendText}>Trung bình 7 ngày</Text>
               </View>
             </>
           ) : (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#ef4444' }]} />
-              <Text style={styles.legendText}>Chi tiêu hàng ngày</Text>
-            </View>
+            <>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: '#ef4444' }]} />
+                <Text style={styles.legendText}>Chi tiêu hàng ngày</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: '#3b82f6' }]} />
+                <Text style={styles.legendText}>Trung bình 7 ngày</Text>
+              </View>
+            </>
           )}
         </View>
       </View>

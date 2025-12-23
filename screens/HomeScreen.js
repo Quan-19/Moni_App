@@ -9,7 +9,7 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
-  PanResponder, // Thêm PanResponder
+  PanResponder, 
   Animated,
   Dimensions,
 } from "react-native";
@@ -50,13 +50,13 @@ const categories = [
 
 // Định nghĩa các tab mới (ĐÃ SỬA: bỏ tab budget ở đây)
 const tabs = [
-  { id: "overview", label: "📊 Tổng quan", /*icon: "stats-chart" */ },
-  { id: "daily", label: "📅 Hàng ngày", /*icon: "calendar"*/ },
-  { id: "goals", label: "🎯 Mục tiêu", /*icon: "trophy"*/ },
+  { id: "overview", label: " Tổng quan", icon: "stats-chart-outline" },
+  { id: "daily", label: "Hàng ngày", icon: "calendar-outline" },
+  { id: "goals", label: " Mục tiêu", icon: "trophy-outline" },
   // { id: "budget", label: "💰 Ngân sách", icon: "wallet" }, // CHỈ HIỆN Ở TAB BUDGET
-  { id: "list", label: "📝 Danh sách", /*icon: "list"*/ },
-  // { id: "stats", label: "📈 Thống kê", icon: "analytics" },
-  { id: "monthly-stats", label: "📊 Tháng", /*icon: "bar-chart" */ },
+  { id: "list", label: " Danh sách chi tiêu", icon: "list-outline" },
+  // { id: "stats", label: " Thống kê", icon: "analytics" },
+  { id: "monthly-stats", label: " Thống kê", icon: "bar-chart-outline" },
 ];
 
 export default function HomeScreen() {
@@ -418,17 +418,24 @@ export default function HomeScreen() {
       );
     }
 
+    const today = new Date();
+    const formattedDate = today.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const monthExpenses = getCurrentMonthExpenses();
+    const monthTotal = monthExpenses.reduce((sum, e) => sum + (e?.amount || 0), 0);
+
     return (
       <View style={styles.monthHeader}>
         <View style={styles.monthInfo}>
-          <Text style={styles.monthTitle}>
-            📅 {currentMonth?.name || "Tháng hiện tại"}
-          </Text>
+          <View style={styles.monthTitleRow}>
+            <Ionicons name="calendar-outline" size={20} color="#3b82f6" style={styles.monthTitleIcon} />
+            <Text style={styles.monthTitle}>{formattedDate}</Text>
+          </View>
           <Text style={styles.monthSubtitle}>
-            {getCurrentMonthExpenses().length} chi •{" "}
-            {getCurrentMonthExpenses()
-              .reduce((sum, e) => sum + (e?.amount || 0), 0)
-              .toLocaleString("vi-VN")} ₫
+            {currentMonth?.name || "Tháng hiện tại"} • {monthExpenses.length} chi • {monthTotal.toLocaleString("vi-VN")} ₫
           </Text>
         </View>
       </View>
@@ -476,13 +483,20 @@ export default function HomeScreen() {
     switch (activeTab) {
       case "overview":
         return (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Truyền setActiveTab xuống FinancialOverview */}
-            <FinancialOverview
-              navigation={navigation}
-              setActiveTab={setActiveTab}
-            />
-            <OverviewTab {...commonProps} />
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.screenContent}
+          >
+            <View style={styles.card}>
+              {/* Truyền setActiveTab xuống FinancialOverview */}
+              <FinancialOverview
+                navigation={navigation}
+                setActiveTab={setActiveTab}
+              />
+            </View>
+            <View style={styles.card}>
+              <OverviewTab {...commonProps} />
+            </View>
           </ScrollView>
         );
       case "daily":
@@ -637,6 +651,7 @@ export default function HomeScreen() {
 
       {/* Header tháng */}
       {renderMonthHeader()}
+      {renderEndOfMonthAlert()}
 
       {/* Tab Navigation */}
       {renderTabNavigation()}
@@ -658,6 +673,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
+  },
+  screenContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
   header: {
     flexDirection: "row",
@@ -710,6 +730,14 @@ const styles = StyleSheet.create({
     color: "#1f2937",
     marginBottom: 4,
   },
+  monthTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  monthTitleIcon: {
+    marginRight: 8,
+  },
   monthSubtitle: {
     fontSize: 14,
     color: "#6b7280",
@@ -725,6 +753,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     marginTop: 10,
+    marginHorizontal: 16,
     borderWidth: 1,
     borderColor: "#fcd34d",
   },
@@ -753,25 +782,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 20,
     marginRight: 8,
     backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   activeTab: {
-    backgroundColor: "#3b82f6",
+    backgroundColor: "#e0f2fe",
+    borderColor: "#3b82f6",
+    elevation: 2,
   },
   tabIcon: {
-    marginRight: 6,
+    marginRight: 8,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6b7280",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#374151",
   },
   activeTabText: {
-    color: "#fff",
-    fontWeight: "600",
+    color: "#0f172a",
+    fontWeight: "700",
   },
   content: {
     flex: 1,
@@ -825,5 +858,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
 });

@@ -22,6 +22,7 @@ import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "../firebaseConfig";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 const GoalsScreen = () => {
   const dispatch = useDispatch();
@@ -439,19 +440,29 @@ const GoalsScreen = () => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
+      {/* Header với icon */}
       <View style={styles.header}>
-        <Text style={styles.title}>Mục tiêu tài chính</Text>
+        <View style={styles.headerTitleRow}>
+          <Ionicons name="trophy-outline" size={28} color="#3B82F6" />
+          <Text style={styles.title}>Mục tiêu tài chính</Text>
+        </View>
         <Text style={styles.subtitle}>Đặt mục tiêu và theo dõi tiến độ</Text>
       </View>
 
       {/* Thống kê */}
       <View style={styles.statsCard}>
         <View style={styles.statItem}>
+          <View style={styles.statIconBg}>
+            <Ionicons name="bullseye" size={24} color="#3B82F6" />
+          </View>
           <Text style={styles.statNumber}>{activeGoals.length}</Text>
-          <Text style={styles.statLabel}>Mục tiêu đang thực hiện</Text>
+          <Text style={styles.statLabel}>Đang thực hiện</Text>
         </View>
+        <View style={styles.statDivider} />
         <View style={styles.statItem}>
+          <View style={styles.statIconBg}>
+            <Ionicons name="wallet" size={24} color="#10B981" />
+          </View>
           <Text style={styles.statNumber}>
             {formatCurrency(
               activeGoals.reduce(
@@ -462,9 +473,13 @@ const GoalsScreen = () => {
           </Text>
           <Text style={styles.statLabel}>Đã tiết kiệm</Text>
         </View>
+        <View style={styles.statDivider} />
         <View style={styles.statItem}>
+          <View style={styles.statIconBg}>
+            <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
+          </View>
           <Text style={styles.statNumber}>{completedGoals.length}</Text>
-          <Text style={styles.statLabel}>Đã hoàn thành</Text>
+          <Text style={styles.statLabel}>Hoàn thành</Text>
         </View>
       </View>
 
@@ -473,13 +488,17 @@ const GoalsScreen = () => {
         style={styles.addGoalButton}
         onPress={() => setModalVisible(true)}
       >
-        <Text style={styles.addGoalButtonText}>+ Đặt mục tiêu mới</Text>
+        <Ionicons name="add-circle" size={20} color="#fff" style={styles.addButtonIcon} />
+        <Text style={styles.addGoalButtonText}>Đặt mục tiêu mới</Text>
       </TouchableOpacity>
 
       {/* Danh sách mục tiêu đang thực hiện */}
       {activeGoals.length > 0 ? (
         <View style={styles.goalsSection}>
-          <Text style={styles.sectionTitle}>🎯 Đang thực hiện</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="flame" size={20} color="#F59E0B" />
+            <Text style={styles.sectionTitle}>Đang thực hiện</Text>
+          </View>
           {activeGoals.map((goal) => {
             const progress = calculateGoalProgress(goal);
             const monthlySaving = calculateMonthlySaving(goal);
@@ -505,9 +524,12 @@ const GoalsScreen = () => {
                         </Text>
                       </View>
                       {goal.deadline && progress.daysLeft > 0 && (
-                        <Text style={styles.deadlineText}>
-                          ⏱️ Còn {progress.daysLeft} ngày
-                        </Text>
+                        <View style={styles.deadlineTag}>
+                          <Ionicons name="hourglass" size={12} color="#F59E0B" />
+                          <Text style={styles.deadlineText}>
+                            Còn {progress.daysLeft} ngày
+                          </Text>
+                        </View>
                       )}
                     </View>
                   </View>
@@ -516,7 +538,7 @@ const GoalsScreen = () => {
                     style={styles.deleteButton}
                     onPress={() => handleDeleteGoal(goal.id, goal.title)}
                   >
-                    <Text style={styles.deleteButtonText}>✕</Text>
+                    <Ionicons name="close-circle" size={24} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
 
@@ -557,13 +579,13 @@ const GoalsScreen = () => {
                 </View>
 
                 {/* Nút hành động */}
-                {/* Nút hành động */}
                 <View style={styles.goalActions}>
                   <TouchableOpacity
                     style={[styles.actionButton, styles.addButton]}
-                    onPress={() => handleAddToGoal(goal.id)} // Sửa thành handleAddToGoal
+                    onPress={() => handleAddToGoal(goal.id)}
                   >
-                    <Text style={styles.actionButtonText}>💰 Thêm tiền</Text>
+                    <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                    <Text style={styles.actionButtonText}>Thêm tiền</Text>
                   </TouchableOpacity>
 
                   {goal.currentAmount > 0 && (
@@ -573,9 +595,8 @@ const GoalsScreen = () => {
                         handleUseFromGoal(goal.id, goal.currentAmount)
                       }
                     >
-                      <Text style={styles.actionButtonText}>
-                        💳 Sử dụng tiền
-                      </Text>
+                      <Ionicons name="card-outline" size={18} color="#fff" />
+                      <Text style={styles.actionButtonText}>Sử dụng</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -585,6 +606,7 @@ const GoalsScreen = () => {
         </View>
       ) : (
         <View style={styles.emptyState}>
+          <Ionicons name="target-outline" size={64} color="#D1D5DB" style={styles.emptyIcon} />
           <Text style={styles.emptyText}>Chưa có mục tiêu nào</Text>
           <Text style={styles.emptySubtext}>
             Đặt mục tiêu để bắt đầu tiết kiệm!
@@ -595,7 +617,10 @@ const GoalsScreen = () => {
       {/* Mục tiêu đã hoàn thành */}
       {completedGoals.length > 0 && (
         <View style={styles.goalsSection}>
-          <Text style={styles.sectionTitle}>✅ Đã hoàn thành</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="checkmark-done-circle" size={20} color="#22C55E" />
+            <Text style={styles.sectionTitle}>Đã hoàn thành</Text>
+          </View>
           {completedGoals.map((goal) => (
             <View key={goal.id} style={[styles.goalCard, styles.completedCard]}>
               <Text style={styles.completedTitle}>🎉 {goal.title}</Text>
@@ -761,11 +786,16 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   header: {
+    marginBottom: 24,
+  },
+  headerTitleRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "700",
     color: "#1f2937",
   },
@@ -773,28 +803,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
     marginTop: 4,
+    marginLeft: 40,
   },
   statsCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 16,
-    marginBottom: 20,
+    marginBottom: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
   statItem: {
-    alignItems: "center",
     flex: 1,
+    alignItems: "center",
+  },
+  statIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#E0F2FE",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#3b82f6",
+    color: "#1f2937",
     marginBottom: 4,
   },
   statLabel: {
@@ -802,47 +843,70 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
   },
+  statDivider: {
+    width: 1,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: 12,
+  },
   addGoalButton: {
-    backgroundColor: "#10b981",
+    backgroundColor: "#3B82F6",
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addButtonIcon: {
+    marginRight: 4,
   },
   addGoalButtonText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   goalsSection: {
-    marginBottom: 20,
+    marginBottom: 24,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1f2937",
-    marginBottom: 12,
   },
   goalCard: {
     backgroundColor: "#fff",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
   goalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   goalTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1f2937",
     marginBottom: 8,
   },
@@ -853,30 +917,34 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
   priorityText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#fff",
-    fontWeight: "500",
-  },
-  deadlineText: {
-    fontSize: 12,
-    color: "#f59e0b",
-    fontWeight: "500",
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  deleteButtonText: {
-    color: "#ef4444",
-    fontSize: 18,
     fontWeight: "600",
   },
+  deadlineTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  deadlineText: {
+    fontSize: 11,
+    color: "#92400E",
+    fontWeight: "600",
+  },
+  deleteButton: {
+    padding: 8,
+  },
   progressContainer: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   progressLabels: {
     flexDirection: "row",
@@ -884,70 +952,83 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   progressText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6b7280",
     fontWeight: "500",
   },
   progressPercentage: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: "#1f2937",
   },
   progressBar: {
     height: 8,
     borderRadius: 4,
+    backgroundColor: "#E5E7EB",
   },
   goalInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
   infoItem: {
     alignItems: "center",
+    flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#6b7280",
     marginBottom: 4,
   },
   infoValue: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1f2937",
   },
   goalActions: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
+    gap: 10,
   },
   actionButton: {
     flex: 1,
-    padding: 10,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 10,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
   },
   addButton: {
-    backgroundColor: "#10b981",
+    backgroundColor: "#10B981",
   },
   useButton: {
-    backgroundColor: "#3b82f6",
+    backgroundColor: "#3B82F6",
   },
   actionButtonText: {
     color: "#fff",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   emptyState: {
     backgroundColor: "#fff",
-    padding: 40,
+    padding: 48,
     borderRadius: 16,
     alignItems: "center",
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  emptyIcon: {
+    marginBottom: 12,
+    opacity: 0.4,
   },
   emptyText: {
     fontSize: 16,
     color: "#6b7280",
-    fontWeight: "500",
+    fontWeight: "600",
     marginBottom: 8,
   },
   emptySubtext: {
@@ -956,76 +1037,76 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   completedCard: {
-    backgroundColor: "#d1fae5",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#a7f3d0",
+    borderColor: "#A7F3D0",
   },
   completedTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#065f46",
+    fontWeight: "700",
+    color: "#047857",
     marginBottom: 4,
   },
   completedText: {
     fontSize: 14,
-    color: "#065f46",
+    color: "#047857",
     marginBottom: 2,
   },
   completedSubtext: {
     fontSize: 13,
-    color: "#047857",
+    color: "#10B981",
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    width: "90%",
-    maxWidth: 400,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "90%",
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     color: "#1f2937",
-    marginBottom: 20,
+    marginBottom: 24,
     textAlign: "center",
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: "#f9fafb",
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: "#F9FAFB",
+    fontSize: 16,
   },
   datePickerButton: {
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
-    padding: 14,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 16,
-    backgroundColor: "#f9fafb",
+    backgroundColor: "#F9FAFB",
   },
   datePickerButtonLabel: {
     fontSize: 12,
     color: "#6b7280",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   datePickerButtonValue: {
     fontSize: 16,
     color: "#1f2937",
-    fontWeight: "600",
+    fontWeight: "700",
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
-    backgroundColor: "#f9fafb",
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
     marginBottom: 20,
   },
   modalButtons: {
@@ -1034,77 +1115,71 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#F3F4F6",
   },
   saveButton: {
-    backgroundColor: "#10b981",
+    backgroundColor: "#3B82F6",
   },
   cancelButtonText: {
     color: "#374151",
-    fontWeight: "600",
+    fontWeight: "700",
   },
   saveButtonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  // Thêm vào styles của GoalsScreen.js
   addMoneyModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    justifyContent: "flex-end",
   },
   addMoneyModalContent: {
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
-    width: "100%",
-    maxWidth: 400,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "60%",
   },
   addMoneyModalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1f2937",
-    marginBottom: 20,
+    marginBottom: 24,
     textAlign: "center",
   },
   addMoneyInput: {
     borderWidth: 2,
-    borderColor: "#3b82f6",
-    borderRadius: 10,
-    padding: 15,
+    borderColor: "#3B82F6",
+    borderRadius: 12,
+    padding: 16,
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1f2937",
     textAlign: "center",
-    marginBottom: 20,
-    backgroundColor: "#f8fafc",
+    marginBottom: 24,
+    backgroundColor: "#F8FAFC",
   },
   addMoneyButtons: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   addMoneyButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 12,
     alignItems: "center",
   },
-  cancelButton: {
-    backgroundColor: "#f3f4f6",
-  },
   confirmButton: {
-    backgroundColor: "#10b981",
+    backgroundColor: "#10B981",
   },
   addMoneyButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
 export default GoalsScreen;

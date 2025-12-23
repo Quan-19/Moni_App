@@ -13,16 +13,16 @@ import {
   getResponsiveWidth
 } from "../utils/ResponsiveUtils";
 
-// Bảng màu hiện đại cho các danh mục
+// Bảng màu hiện đại cho các danh mục - vibrant và distinct
 const CATEGORY_COLORS = {
-  "Ăn uống": "#FF6B6B",
-  "Mua sắm": "#4ECDC4", 
-  "Di chuyển": "#FFD166",
-  "Giải trí": "#A78BFA",
-  "Hóa đơn": "#34D399",
-  "Y tế": "#60A5FA",
+  "Ăn uống": "#EF4444",
+  "Mua sắm": "#06B6D4", 
+  "Di chuyển": "#F59E0B",
+  "Giải trí": "#A855F7",
+  "Hóa đơn": "#10B981",
+  "Y tế": "#3B82F6",
   "Tiết kiệm": "#8B5CF6",
-  "Khác": "#F59E0B"
+  "Khác": "#EC4899"
 };
 
 // Map icon cho từng danh mục
@@ -90,7 +90,7 @@ export default function CategoryChart({ expenses }) {
     };
   }, [expenses]);
 
-  const screenWidth = Dimensions.get("window").width - 60;
+  const screenWidth = Dimensions.get("window").width - 40;
   
   const chartCenterX = screenWidth / 4;
 
@@ -131,14 +131,14 @@ export default function CategoryChart({ expenses }) {
             <PieChart
               data={chartData}
               width={screenWidth}
-              height={280}
+              height={320}
               chartConfig={{
                 color: (opacity = 1) => `rgba(75, 85, 99, ${opacity})`,
                 strokeWidth: 2,
                 backgroundGradientFrom: "#ffffff",
-                backgroundGradientTo: "#f8fafc",
+                backgroundGradientTo: "#ffffff",
                 style: {
-                  borderRadius: 20,
+                  borderRadius: 16,
                 },
               }}
               accessor="population"
@@ -259,24 +259,26 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
   },
   chartSection: {
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     borderRadius: BORDER_RADIUS.xl,
     padding: 0,
     marginBottom: SPACING.xl,
-    shadowColor: "#3b82f6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
   chartContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: SPACING.xl,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
     width: "100%",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#ffffff",
   },
   detailsSection: {
     marginBottom: SPACING.xl,
@@ -308,21 +310,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
   categoryCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
     backgroundColor: "#fff",
   },
   categoryCardBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: "#efefef",
   },
   categoryLeft: {
     flex: 1,
@@ -331,9 +335,9 @@ const styles = StyleSheet.create({
     gap: GAPS.md,
   },
   categoryIconBg: {
-    width: ICON_SIZES.md,
-    height: ICON_SIZES.md,
-    borderRadius: BORDER_RADIUS.md,
+    width: 44,
+    height: 44,
+    borderRadius: BORDER_RADIUS.lg,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -375,16 +379,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#3b82f6",
+    backgroundColor: "#3B82F6",
     paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg,
     marginTop: SPACING.xl,
-    shadowColor: "#3b82f6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
   },
   summaryLeft: {
     flexDirection: "row",

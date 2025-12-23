@@ -11,6 +11,7 @@ import {
 import { useDispatch } from 'react-redux';
 import { deleteExpense } from '../../slices/expensesSlice';
 import { Picker } from '@react-native-picker/picker';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const ListTab = ({ expenses, categories, filters, onFilterChange, navigation }) => {
   const dispatch = useDispatch();
@@ -51,20 +52,25 @@ const ListTab = ({ expenses, categories, filters, onFilterChange, navigation }) 
       {/* Bộ lọc */}
       <View style={styles.filterSection}>
         <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm kiếm chi tiêu..."
-            placeholderTextColor="#9ca3af"
-            value={search}
-            onChangeText={handleSearchChange}
-          />
+          <View style={styles.searchInputWrapper}>
+            <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Tìm kiếm chi tiêu..."
+              placeholderTextColor="#9ca3af"
+              value={search}
+              onChangeText={handleSearchChange}
+            />
+          </View>
           <TouchableOpacity
-            style={styles.filterToggleButton}
+            style={[styles.filterToggleButton, showFilters && styles.filterToggleButtonActive]}
             onPress={() => setShowFilters(!showFilters)}
           >
-            <Text style={styles.filterToggleText}>
-              {showFilters ? "Ẩn" : "Lọc"}
-            </Text>
+            <Ionicons 
+              name={showFilters ? "funnel" : "funnel-outline"} 
+              size={18} 
+              color={showFilters ? "#3B82F6" : "#6B7280"}
+            />
           </TouchableOpacity>
         </View>
 
@@ -93,6 +99,7 @@ const ListTab = ({ expenses, categories, filters, onFilterChange, navigation }) 
                   onFilterChange({ ...filters, search: '', category: 'All' });
                 }}
               >
+                <Ionicons name="close-circle" size={16} color="#fff" style={styles.resetIcon} />
                 <Text style={styles.resetFilterText}>Xóa bộ lọc</Text>
               </TouchableOpacity>
             )}
@@ -103,11 +110,15 @@ const ListTab = ({ expenses, categories, filters, onFilterChange, navigation }) 
       {/* Danh sách */}
       <View style={styles.listContainer}>
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>Danh sách chi tiêu ({expenses.length})</Text>
+          <View style={styles.headerTitleRow}>
+            <Ionicons name="receipt" size={20} color="#3B82F6" />
+            <Text style={styles.sectionTitle}>Chi tiêu ({expenses.length})</Text>
+          </View>
         </View>
 
         {expenses.length === 0 ? (
           <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={60} color="#D1D5DB" style={styles.emptyIcon} />
             <Text style={styles.noDataText}>Không tìm thấy chi tiêu nào</Text>
             <Text style={styles.noDataSubText}>
               {search || filters.category !== "All"
@@ -125,34 +136,41 @@ const ListTab = ({ expenses, categories, filters, onFilterChange, navigation }) 
                 style={styles.expenseItem}
                 onPress={() => navigation.navigate("EditExpense", { expense: item })}
               >
+                <View style={[styles.categoryIconBg, { backgroundColor: getCategoryColor(item.category) + "20" }]}>
+                  <Ionicons 
+                    name="document-outline" 
+                    size={20} 
+                    color={getCategoryColor(item.category)} 
+                  />
+                </View>
                 <View style={styles.expenseContent}>
                   <View style={styles.expenseMain}>
-                    <Text style={styles.expenseTitle}>{item.title}</Text>
-                    <Text style={styles.expenseAmount}>
-                      {item.amount.toLocaleString()} VND
-                    </Text>
-                  </View>
-                  <View style={styles.expenseDetails}>
-                    <View
-                      style={[
-                        styles.categoryBadge,
-                        { backgroundColor: getCategoryColor(item.category) },
-                      ]}
-                    >
-                      <Text style={styles.categoryText}>{item.category}</Text>
+                    <View style={styles.expenseTitleSection}>
+                      <Text style={styles.expenseTitle}>{item.title}</Text>
+                      <View
+                        style={[
+                          styles.categoryBadge,
+                          { backgroundColor: getCategoryColor(item.category) },
+                        ]}
+                      >
+                        <Text style={styles.categoryText}>{item.category}</Text>
+                      </View>
                     </View>
-                    <Text style={styles.expenseDate}>
-                      {item.date
-                        ? new Date(item.date).toLocaleDateString("vi-VN")
-                        : ""}
+                    <Text style={styles.expenseAmount}>
+                      {item.amount.toLocaleString()} ₫
                     </Text>
                   </View>
+                  <Text style={styles.expenseDate}>
+                    {item.date
+                      ? new Date(item.date).toLocaleDateString("vi-VN")
+                      : ""}
+                  </Text>
                 </View>
                 <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => handleDelete(item.id)}
                 >
-                  <Text style={styles.deleteText}>✕</Text>
+                  <Ionicons name="close-circle" size={22} color="#EF4444" />
                 </TouchableOpacity>
               </TouchableOpacity>
             )}
@@ -175,67 +193,86 @@ const styles = StyleSheet.create({
     marginTop: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+  },
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    backgroundColor: '#f9fafb',
-    marginRight: 12,
+    padding: 12,
+    fontSize: 15,
   },
   filterToggleButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: '#f3f4f6',
+    padding: 12,
+    backgroundColor: '#F3F4F6',
     borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  filterToggleText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+  filterToggleButtonActive: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#3B82F6',
   },
   simpleFilterOptions: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: '#F3F4F6',
   },
   filterLabel: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#374151',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#E5E7EB',
     borderRadius: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#F9FAFB',
     overflow: 'hidden',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   picker: {
     height: 50,
   },
   resetFilterButton: {
-    backgroundColor: '#ef4444',
+    backgroundColor: '#EF4444',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  resetIcon: {
+    marginRight: 2,
   },
   resetFilterText: {
     color: '#fff',
-    fontWeight: '500',
+    fontWeight: '700',
     fontSize: 14,
   },
   listContainer: {
@@ -244,25 +281,41 @@ const styles = StyleSheet.create({
   listHeader: {
     marginBottom: 16,
     marginTop: 16,
+    marginHorizontal: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1f2937',
-    paddingLeft: 16,
   },
   expenseItem: {
     backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 14,
+    marginHorizontal: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  categoryIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   expenseContent: {
     flex: 1,
@@ -271,19 +324,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 6,
+    gap: 8,
+  },
+  expenseTitleSection: {
+    flex: 1,
+    gap: 6,
   },
   expenseTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
-    flex: 1,
-    marginRight: 12,
   },
   expenseAmount: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#059669',
+    color: '#EF4444',
   },
   expenseDetails: {
     flexDirection: 'row',
@@ -291,48 +347,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
     color: '#fff',
   },
   expenseDate: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#9ca3af',
     fontWeight: '500',
   },
   deleteButton: {
-    padding: 8,
-    marginLeft: 12,
-  },
-  deleteText: {
-    color: '#ef4444',
-    fontSize: 18,
-    fontWeight: '600',
+    padding: 6,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 48,
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
     marginTop: 20,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  emptyIcon: {
+    marginBottom: 12,
+    opacity: 0.4,
   },
   noDataText: {
     textAlign: 'center',
     color: '#6b7280',
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
   },
   noDataSubText: {
     textAlign: 'center',
     color: '#9ca3af',
-    fontSize: 14,
+    fontSize: 13,
   },
 });
 
